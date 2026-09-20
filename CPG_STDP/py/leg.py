@@ -251,98 +251,65 @@ class LEG:
         gid: int
             generators gid
         '''
-        print(f"🎯 [rank {rank}] Creating IaGenerator: start={start}, weight={weight}")
-        logging.info(f"IaGenerator creation start: start={start}, weight={weight}")
+        if not mn or not mn2:
+            # print(f"❌ [rank {rank}] Empty motor neuron lists for IaGenerator")
+            logging.error("Empty motor neuron lists for IaGenerator")
+            return None
+
+        rng = random.Random(start)
+        moto_gid = rng.choice(mn)
+        moto2_gid = rng.choice(mn2)
 
         gid = get_gid()
-        print(f"   Assigned GID: {gid}")
-
+        # print(f"   Assigned GID: {gid}")
+        owner_rank = pc.gid2node(moto_gid)
+        pc.set_gid2node(gid, owner_rank)
         # Only create on rank 0 to avoid conflicts
-        if rank == 0:
+        if rank == owner_rank:
             try:
-                # Check if we have motor neurons available
-                if not mn or not mn2:
-                    print(f"   ❌ Empty motor neuron lists")
-                    logging.error("Empty motor neuron lists for IaGenerator")
-                    return gid
-
-                # Get random motor neurons from the lists
-                moto_gid = random.choice(mn)
-                moto2_gid = random.choice(mn2)
-                print(f"   Selected motor neurons: {moto_gid}, {moto2_gid}")
-
-                moto_exists = pc.gid_exists(moto_gid)
-                moto2_exists = pc.gid_exists(moto2_gid)
 
                 interval = int(1000 / bs_fr)
                 number = int(one_step_time / interval) - 2
 
-                if not moto_exists or not moto2_exists:
-                    print(f"   ⚠️ Motor neurons not found locally, creating simplified IaGenerator")
-                    # Create simplified generator without muscle connections
-                    stim = h.IaGenerator()
-                    stim.start = start
-                    stim.interval = interval
-                    stim.number = number
+                stim = h.IaGenerator()
+                stim.start = start
+                stim.interval = interval
+                stim.number = number
 
-                    self.stims.append(stim)
-                    pc.set_gid2node(gid, rank)
-                    ncstim = h.NetCon(stim, None)
-                    ncstim.weight[0] = weight
-                    self.netcons.append(ncstim)
-                    pc.cell(gid, ncstim)
+                self.stims.append(stim)
 
-                else:
-                    # Create full IaGenerator with muscle connections
+                ncstim = h.NetCon(stim, None)
+                ncstim.weight[0] = weight
+                self.netcons.append(ncstim)
+                pc.cell(gid, ncstim)
+
+                if pc.gid_exists(moto_gid):
                     moto = pc.gid2cell(moto_gid)
-                    moto2 = pc.gid2cell(moto2_gid)
-                    print(f"   Got motor neuron objects: {type(moto).__name__}, {type(moto2).__name__}")
-
-                    stim = h.IaGenerator()
-                    print(f"   ✅ IaGenerator created: {type(stim).__name__}")
-                    logging.info(f"IaGenerator object created successfully")
-
-                    stim.start = start
-                    stim.interval = interval
-                    stim.number = number
-                    print(f"   Parameters set: start={stim.start}, interval={stim.interval}, number={stim.number}")
-
-                    self.stims.append(stim)
-
-                    # Set pointers if motor neurons have muscle_unit
-                    try:
-                        if hasattr(moto, 'muscle_unit'):
+                    if hasattr(moto, 'muscle_unit'):
+                        try:
                             h.setpointer(moto.muscle_unit(0.5)._ref_F_fHill, 'fhill', stim)
                             print(f"   ✅ First pointer set (fhill)")
-                    except Exception as ptr1_error:
-                        print(f"   ⚠️ First pointer warning: {ptr1_error}")
+                        except Exception as ptr1_error:
+                            print(f"   ⚠️ First pointer warning: {ptr1_error}")
 
-                    try:
-                        if hasattr(moto2, 'muscle_unit'):
+                if pc.gid_exists(moto2_gid):
+                    moto2 = pc.gid2cell(moto2_gid)
+                    if hasattr(moto2, 'muscle_unit'):
+                        try:
                             h.setpointer(moto2.muscle_unit(0.5)._ref_F_fHill, 'fhill2', stim)
                             print(f"   ✅ Second pointer set (fhill2)")
-                    except Exception as ptr2_error:
-                        print(f"   ⚠️ Second pointer warning: {ptr2_error}")
+                        except Exception as ptr2_error:
+                            print(f"   ⚠️ Second pointer warning: {ptr2_error}")
 
-                    pc.set_gid2node(gid, rank)
-                    ncstim = h.NetCon(stim, None)
-                    ncstim.weight[0] = weight
-                    self.netcons.append(ncstim)
-                    pc.cell(gid, ncstim)
-
-                log_gid_by_lookup(self, gid, "Ia")
-                print(f"🎯 IaGenerator creation completed successfully: GID={gid}")
+                # log_gid_by_lookup(self, gid, "Ia")
+                # print(f"🎯 IaGenerator creation completed successfully: GID={gid}")
                 logging.info(f"IaGenerator creation completed: GID={gid}")
 
             except Exception as ia_error:
-                print(f"❌ IaGenerator creation failed: {ia_error}")
+                # print(f"❌ IaGenerator creation failed: {ia_error}")
                 logging.error(f"IaGenerator creation failed: {ia_error}")
                 # Still increment GID to maintain consistency
                 pass
-
-        else:
-            # Other ranks just register the GID assignment
-            pc.set_gid2node(gid, 0)
 
         self.gener_Iagids.append(gid)
         return gid
@@ -367,7 +334,12 @@ class LEG:
         connectcells(self, self.InF, self.InE, 0.12, 1, inhtype=True,
                      pre_name="InF_inh_InE", post_name="InE")
 
-        if rank == 0:
+        stim_gid = get_gid()
+        owner_rank = 0
+        pc.set_gid2node(stim_gid, owner_rank)
+
+        kick_E = None
+        if rank == owner_rank:
             kick_E = h.NetStim()
             kick_E.start = 8.0
             kick_E.interval = 5.0
@@ -375,35 +347,32 @@ class LEG:
             kick_E.noise = 0.0
             self.stims.append(kick_E)
 
-            kick_F = h.NetStim()
-            kick_F.start = 12.0
-            kick_F.interval = 5.0
-            kick_F.number = 6
-            kick_F.noise = 0.0
-            self.stims.append(kick_F)
+            nc_dummy = h.NetCon(kick_E, None)
+            pc.cell(stim_gid, nc_dummy)
+            self.netcons.append(nc_dummy)
 
-            n_kick_syn = 10
+        n_kick_syn = 10
 
-            for layer in range(CV_number):
-                for target_gid in self.dict_RG_E[layer]:
-                    if pc.gid_exists(target_gid):
-                        cell = pc.gid2cell(target_gid)
-                        if hasattr(cell, 'synlistex') and cell.synlistex:
-                            for si in range(min(n_kick_syn, len(cell.synlistex))):
-                                nc = h.NetCon(kick_E, cell.synlistex[si])
-                                nc.weight[0] = 0.6
-                                nc.delay = 0.5
-                                self.stimnclist.append(nc)
+        for layer in range(CV_number):
+            for target_gid in self.dict_RG_E[layer]:
+                if pc.gid_exists(target_gid):
+                    cell = pc.gid2cell(target_gid)
+                    if hasattr(cell, 'synlistex') and cell.synlistex:
+                        for si in range(min(n_kick_syn, len(cell.synlistex))):
+                            nc = pc.gid_connect(stim_gid, cell.synlistex[si])
+                            nc.weight[0] = 0.6
+                            nc.delay = 0.5
+                            self.stimnclist.append(nc)
 
-                for target_gid in self.dict_RG_F[layer]:
-                    if pc.gid_exists(target_gid):
-                        cell = pc.gid2cell(target_gid)
-                        if hasattr(cell, 'synlistex') and cell.synlistex:
-                            for si in range(min(n_kick_syn, len(cell.synlistex))):
-                                nc = h.NetCon(kick_F, cell.synlistex[si])
-                                nc.weight[0] = 0.4
-                                nc.delay = 0.5
-                                self.stimnclist.append(nc)
+            for target_gid in self.dict_RG_F[layer]:
+                if pc.gid_exists(target_gid):
+                    cell = pc.gid2cell(target_gid)
+                    if hasattr(cell, 'synlistex') and cell.synlistex:
+                        for si in range(min(n_kick_syn, len(cell.synlistex))):
+                            nc = pc.gid_connect(stim_gid, cell.synlistex[si])
+                            nc.weight[0] = 0.4
+                            nc.delay = 0.5
+                            self.stimnclist.append(nc)
 
         logging.info("setup_autonomous_rhythm done: %s", self.name)
 
