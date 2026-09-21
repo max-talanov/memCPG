@@ -262,7 +262,7 @@ class LEG:
 
         gid = get_gid()
         # print(f"   Assigned GID: {gid}")
-        owner_rank = pc.gid2node(moto_gid)
+        owner_rank = moto_gid % nhost
         pc.set_gid2node(gid, owner_rank)
         # Only create on rank 0 to avoid conflicts
         if rank == owner_rank:
