@@ -135,7 +135,6 @@ def connectcells(leg, pre_cells, post_cells, weight=1.0, delay=1, threshold=10, 
                             nc.delay = delay
                             nc.weight[0] = weight
                             nc.threshold = threshold
-                            pc.threshold(src_gid, threshold)
                             leg.netcons.append(nc)
 
                             try:
@@ -156,7 +155,6 @@ def connectcells(leg, pre_cells, post_cells, weight=1.0, delay=1, threshold=10, 
                             pstsyn.weight[0] = -2
                             pstsyn.threshold = threshold
                             leg.postsyns.append(pstsyn)
-                            pc.threshold(post_gid, threshold)
 
                             pointer_ok = False
                             try:

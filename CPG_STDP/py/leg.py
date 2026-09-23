@@ -367,45 +367,41 @@ class LEG:
         connectcells(self, self.InF, self.InE, 0.12, 1, inhtype=True,
                      pre_name="InF_inh_InE", post_name="InE")
 
-        if rank == 0:
-            kick_E = h.NetStim()
-            kick_E.start = 8.0
-            kick_E.interval = 5.0
-            kick_E.number = 8
-            kick_E.noise = 0.0
-            self.stims.append(kick_E)
+        n_kick_syn = 10
+        kick_E_gid = self._make_kick_stim(start=8.0, interval=5.0, number=8)
+        kick_F_gid = self._make_kick_stim(start=12.0, interval=5.0, number=6)
 
-            kick_F = h.NetStim()
-            kick_F.start = 12.0
-            kick_F.interval = 5.0
-            kick_F.number = 6
-            kick_F.noise = 0.0
-            self.stims.append(kick_F)
-
-            n_kick_syn = 10
-
-            for layer in range(CV_number):
-                for target_gid in self.dict_RG_E[layer]:
-                    if pc.gid_exists(target_gid):
-                        cell = pc.gid2cell(target_gid)
-                        if hasattr(cell, 'synlistex') and cell.synlistex:
-                            for si in range(min(n_kick_syn, len(cell.synlistex))):
-                                nc = h.NetCon(kick_E, cell.synlistex[si])
-                                nc.weight[0] = 0.6
-                                nc.delay = 0.5
-                                self.stimnclist.append(nc)
-
-                for target_gid in self.dict_RG_F[layer]:
-                    if pc.gid_exists(target_gid):
-                        cell = pc.gid2cell(target_gid)
-                        if hasattr(cell, 'synlistex') and cell.synlistex:
-                            for si in range(min(n_kick_syn, len(cell.synlistex))):
-                                nc = h.NetCon(kick_F, cell.synlistex[si])
-                                nc.weight[0] = 0.4
-                                nc.delay = 0.5
-                                self.stimnclist.append(nc)
+        for layer in range(CV_number):
+            genconnect(self, kick_E_gid, self.dict_RG_E[layer],
+                       weight=0.6, delay=0.5, N=n_kick_syn,
+                       gen_name="kick_E", target_name=f"RG_E_{layer + 1}")
+            genconnect(self, kick_F_gid, self.dict_RG_F[layer],
+                       weight=0.4, delay=0.5, N=n_kick_syn,
+                       gen_name="kick_F", target_name=f"RG_F_{layer + 1}")
 
         logging.info("setup_autonomous_rhythm done: %s", self.name)
+
+    def _make_kick_stim(self, start: float, interval: float, number: int) -> int:
+        gid = get_gid()
+        if rank == 0:
+            stim = h.NetStim()
+            stim.start = start
+            stim.interval = interval
+            stim.number = number
+            stim.noise = 0.0
+            self.stims.append(stim)
+            pc.set_gid2node(gid, rank)
+            ncstim = h.NetCon(stim, None)
+            spike_times = h.Vector()
+            ncstim.record(spike_times)
+            self.gen_spike_vectors.append((gid, spike_times))
+            self.netcons.append(ncstim)
+            pc.cell(gid, ncstim)
+            log_gid_by_lookup(self, gid, "kick")
+        else:
+            pc.set_gid2node(gid, 0)
+        self.gener_gids.append(gid)
+        return gid
 
     def add_ia_geners(self, leg_l):
         E_ia_gids = []
