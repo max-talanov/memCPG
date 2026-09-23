@@ -40,9 +40,10 @@ def addpool(leg, num, name, neurontype="int") -> list:
     for i in range(num):
         gid = get_gid()
         all_gids.append(gid)
-
+        owner_rank = i % nhost
+        pc.set_gid2node(gid, owner_rank)
         # Only create cell if this rank is responsible for this neuron
-        if i % nhost == rank:
+        if owner_rank == rank:
             if neurontype.lower() == "moto":
                 cell = motoneuron(diams[i])
                 leg.motos.append(cell)
@@ -60,10 +61,10 @@ def addpool(leg, num, name, neurontype="int") -> list:
                 leg.ints.append(cell)
 
             gids.append(gid)
-            pc.set_gid2node(gid, rank)
+            # pc.set_gid2node(gid, rank)
             nc = cell.connect2target(None)
             pc.cell(gid, nc)
-            log_gid_by_lookup(leg, gid, neurontype.lower())
+            # log_gid_by_lookup(leg, gid, neurontype.lower())
             leg.netcons.append(nc)
 
     # Groups - store all GIDs, not just local ones
@@ -91,15 +92,18 @@ def connectcells(leg, pre_cells, post_cells, weight=1.0, delay=1, threshold=10, 
 
     nsyn_requested = random.randint(N, N + 15)
     connection_count = 0
+    pre_cells_list = list(pre_cells)
 
     for post_idx, post_gid in enumerate(post_cells):
         if pc.gid_exists(post_gid):
             try:
+                rng = random.Random(f"{pre_name}_{post_name}_{post_gid}")
+
                 target = pc.gid2cell(post_gid)
                 target_type = type(target).__name__
                 logging.info(f"Target {post_gid} type: {target_type}")
 
-                pre_cells_list = list(pre_cells)
+                nsyn_requested = rng.randint(N, N + 15)
 
                 if stdptype:
                     avail = len(getattr(target, 'synlistexstdp', []))
@@ -107,6 +111,7 @@ def connectcells(leg, pre_cells, post_cells, weight=1.0, delay=1, threshold=10, 
                     avail = len(getattr(target, 'synlistinh', []))
                 else:
                     avail = len(getattr(target, 'synlistex', []))
+
                 nsyn = min(nsyn_requested, avail)
                 if nsyn < nsyn_requested:
                     logging.warning(
@@ -114,19 +119,15 @@ def connectcells(leg, pre_cells, post_cells, weight=1.0, delay=1, threshold=10, 
                         f"for {target_type} gid={post_gid}"
                     )
 
-                stdp_dummy = h.Section() if stdptype else None
+                stdp_dummy = h.Section(name=f"stdp_dummy_{post_gid}") if stdptype else None
 
                 for i in range(nsyn):
-                    src_gid = random.choice(pre_cells_list)
+                    src_gid = rng.choice(pre_cells_list)
 
                     if stdptype:
                         try:
-                            if not hasattr(target, 'synlistexstdp'):
-                                logging.error(f"No synlistexstdp in {target_type}")
-                                continue
-
-                            if len(target.synlistexstdp) <= i:
-                                logging.error(f"synlistexstdp index {i} out of range")
+                            if not hasattr(target, 'synlistexstdp') or len(target.synlistexstdp) <= i:
+                                logging.error(f"synlistexstdp index {i} out of range in {target_type}")
                                 continue
 
                             syn = target.synlistexstdp[i]
@@ -190,9 +191,9 @@ def connectcells(leg, pre_cells, post_cells, weight=1.0, delay=1, threshold=10, 
                                 # print(f"     ✅ Got excitatory synapse")
 
                             nc = pc.gid_connect(src_gid, syn)
-                            nc.weight[0] = random.gauss(weight, weight / 5)
+                            nc.weight[0] = rng.gauss(weight, weight / 5)
                             nc.threshold = threshold
-                            nc.delay = random.gauss(delay, delay / 5)
+                            nc.delay = rng.gauss(delay, delay / 5)
                             leg.netcons.append(nc)
                             # print(f"     ✅ Regular NetCon created")
                             connection_count += 1
@@ -206,58 +207,72 @@ def connectcells(leg, pre_cells, post_cells, weight=1.0, delay=1, threshold=10, 
                 logging.error(f"Target error {post_gid}: {target_error}")
 
         else:
-            print(f"   ⏭️ GID {post_gid} not on this rank")
+            pass
 
     # print(f"🏁 connectcells finished: {connection_count} connections created")
     logging.info(f"connectcells end: {connection_count} connections created")
 
 
 def genconnect(leg, gen_gid, afferents_gids, weight, delay, inhtype=False, N=50, gen_name="GEN", target_name="TARGET"):
-    nsyn_requested = random.randint(N - 5, N)
     logger_genconnect.info(
         f"genconnect start | leg={leg.name} | "
         f"{gen_name}({gen_gid}) -> {target_name}({len(afferents_gids)}) | "
-        f"nsyn_per_target={nsyn_requested} | "
         f"weight={weight} | delay={delay} | inhtype={inhtype}"
     )
     for i in afferents_gids:
         if pc.gid_exists(i):
-            target = pc.gid2cell(i)
-            avail = len(target.synlistinh if inhtype else target.synlistex)
-            nsyn = min(nsyn_requested, avail)
-            if nsyn < nsyn_requested:
-                logging.warning(
-                    f"genconnect: nsyn clamped {nsyn_requested}->{nsyn} "
-                    f"for {type(target).__name__} gid={i}"
-                )
-            for j in range(nsyn):
-                if inhtype:
-                    syn = target.synlistinh[j]
-                else:
-                    syn = target.synlistex[j]
-                nc = pc.gid_connect(gen_gid, syn)
-                nc.threshold = leg.threshold
-                nc.delay = random.gauss(delay, delay / 5)
-                nc.weight[0] = random.gauss(weight, weight / 6)
+            try:
+                rng = random.Random(f"{gen_name}_{target_name}_{i}_{gen_gid}")
+                nsyn_requested = rng.randint(max(0, N - 5), N)
 
-                # ---------------------------------------
-                # ЛОГИРУЕМ СОЕДИНЕНИЕ
-                # ---------------------------------------
-                logger_genconnect.info(
-                    "NetCon created | %s(%s) -> %s(%s) | syn_index=%s | "
-                    "threshold=%.4f | delay=%.4f | weight=%.4f | inhtype=%s",
-                    gen_name,
-                    gen_gid,
-                    target_name,
-                    i,
-                    j,
-                    nc.threshold,
-                    nc.delay,
-                    nc.weight[0],
-                    inhtype
-                )
-                # ---------------------------------------
-                leg.stimnclist.append(nc)
+                target = pc.gid2cell(i)
+                target_type = type(target).__name__
+
+                syn_list_name = 'synlistinh' if inhtype else 'synlistex'
+                if not hasattr(target, syn_list_name):
+                    logging.error(f"Target {target_type} (gid={i}) has no attribute {syn_list_name}")
+                    continue
+
+                syn_list = getattr(target, syn_list_name)
+                avail = len(syn_list)
+                nsyn = min(nsyn_requested, avail)
+
+                if nsyn < nsyn_requested:
+                    logging.warning(
+                        f"genconnect: nsyn clamped {nsyn_requested}->{nsyn} "
+                        f"for {target_type} gid={i}"
+                    )
+                for j in range(nsyn):
+                    if len(syn_list) <= j:
+                        break
+                    syn = syn_list[j]
+
+                    nc = pc.gid_connect(gen_gid, syn)
+                    nc.threshold = leg.threshold
+                    nc.delay = random.gauss(delay, delay / 5)
+                    nc.weight[0] = random.gauss(weight, weight / 6)
+
+                    # ---------------------------------------
+                    # ЛОГИРУЕМ СОЕДИНЕНИЕ
+                    # ---------------------------------------
+                    logger_genconnect.info(
+                        "NetCon created | %s(%s) -> %s(%s) | syn_index=%s | "
+                        "threshold=%.4f | delay=%.4f | weight=%.4f | inhtype=%s",
+                        gen_name,
+                        gen_gid,
+                        target_name,
+                        i,
+                        j,
+                        nc.threshold,
+                        nc.delay,
+                        nc.weight[0],
+                        inhtype
+                    )
+                    # ---------------------------------------
+                    leg.stimnclist.append(nc)
+
+            except Exception as e:
+                logging.error(f"Error in genconnect for target gid {i}: {e}")
 
 
 def motodiams(number):
@@ -363,7 +378,8 @@ def addgener(leg, start, freq, cv=False, r=True):
         stim = h.NetStim()
 
         if r:
-            stim.start = random.uniform(start - 3, start + 3)
+            rng = random.Random(gid)
+            stim.start = rng.uniform(start - 3, start + 3)
             stim.noise = 0.05
         else:
             stim.start = start
@@ -394,7 +410,7 @@ def addgener(leg, start, freq, cv=False, r=True):
         leg.gen_spike_vectors.append((gid, spike_times))
         leg.netcons.append(ncstim)
         pc.cell(gid, ncstim)
-        log_gid_by_lookup(leg, gid, "gen")
+        # log_gid_by_lookup(leg, gid, "gen")
 
     else:
         # Other ranks just need to know the GID is assigned to rank 0
