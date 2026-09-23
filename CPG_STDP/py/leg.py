@@ -41,7 +41,7 @@ class LEG:
 
         self.weight_changes_vectors = []
         self.time_t_vectors = []
-        
+
         self.C_0 = []
         self.V0v = []
         self.V3F = []
@@ -251,98 +251,64 @@ class LEG:
         gid: int
             generators gid
         '''
-        print(f"🎯 [rank {rank}] Creating IaGenerator: start={start}, weight={weight}")
-        logging.info(f"IaGenerator creation start: start={start}, weight={weight}")
+        if not mn or not mn2:
+            # print(f"❌ [rank {rank}] Empty motor neuron lists for IaGenerator")
+            logging.error("Empty motor neuron lists for IaGenerator")
+            return None
+
+        rng = random.Random(start)
+        moto_gid = rng.choice(mn)
+        moto2_gid = rng.choice(mn2)
 
         gid = get_gid()
-        print(f"   Assigned GID: {gid}")
-
+        # print(f"   Assigned GID: {gid}")
+        owner_rank = moto_gid % nhost
+        pc.set_gid2node(gid, owner_rank)
         # Only create on rank 0 to avoid conflicts
-        if rank == 0:
+        if rank == owner_rank:
             try:
-                # Check if we have motor neurons available
-                if not mn or not mn2:
-                    print(f"   ❌ Empty motor neuron lists")
-                    logging.error("Empty motor neuron lists for IaGenerator")
-                    return gid
-
-                # Get random motor neurons from the lists
-                moto_gid = random.choice(mn)
-                moto2_gid = random.choice(mn2)
-                print(f"   Selected motor neurons: {moto_gid}, {moto2_gid}")
-
-                moto_exists = pc.gid_exists(moto_gid)
-                moto2_exists = pc.gid_exists(moto2_gid)
-
                 interval = int(1000 / bs_fr)
                 number = int(one_step_time / interval) - 2
 
-                if not moto_exists or not moto2_exists:
-                    print(f"   ⚠️ Motor neurons not found locally, creating simplified IaGenerator")
-                    # Create simplified generator without muscle connections
-                    stim = h.IaGenerator()
-                    stim.start = start
-                    stim.interval = interval
-                    stim.number = number
+                stim = h.IaGenerator()
+                stim.start = start
+                stim.interval = interval
+                stim.number = number
 
-                    self.stims.append(stim)
-                    pc.set_gid2node(gid, rank)
-                    ncstim = h.NetCon(stim, None)
-                    ncstim.weight[0] = weight
-                    self.netcons.append(ncstim)
-                    pc.cell(gid, ncstim)
+                self.stims.append(stim)
 
-                else:
-                    # Create full IaGenerator with muscle connections
+                ncstim = h.NetCon(stim, None)
+                ncstim.weight[0] = weight
+                self.netcons.append(ncstim)
+                pc.cell(gid, ncstim)
+
+                if pc.gid_exists(moto_gid):
                     moto = pc.gid2cell(moto_gid)
+                    if hasattr(moto, "muscle_unit"):
+                        try:
+                            h.setpointer(moto.muscle_unit(0.5)._ref_F_fHill, "fhill", stim)
+                            print("   ✅ First pointer set (fhill)")
+                        except Exception as ptr1_error:
+                            print(f"   ⚠️ First pointer warning: {ptr1_error}")
+
+                if pc.gid_exists(moto2_gid):
                     moto2 = pc.gid2cell(moto2_gid)
-                    print(f"   Got motor neuron objects: {type(moto).__name__}, {type(moto2).__name__}")
+                    if hasattr(moto2, "muscle_unit"):
+                        try:
+                            h.setpointer(moto2.muscle_unit(0.5)._ref_F_fHill, "fhill2", stim)
+                            print("   ✅ Second pointer set (fhill2)")
+                        except Exception as ptr2_error:
+                            print(f"   ⚠️ Second pointer warning: {ptr2_error}")
 
-                    stim = h.IaGenerator()
-                    print(f"   ✅ IaGenerator created: {type(stim).__name__}")
-                    logging.info(f"IaGenerator object created successfully")
-
-                    stim.start = start
-                    stim.interval = interval
-                    stim.number = number
-                    print(f"   Parameters set: start={stim.start}, interval={stim.interval}, number={stim.number}")
-
-                    self.stims.append(stim)
-
-                    # Set pointers if motor neurons have muscle_unit
-                    try:
-                        if hasattr(moto, 'muscle_unit'):
-                            h.setpointer(moto.muscle_unit(0.5)._ref_F_fHill, 'fhill', stim)
-                            print(f"   ✅ First pointer set (fhill)")
-                    except Exception as ptr1_error:
-                        print(f"   ⚠️ First pointer warning: {ptr1_error}")
-
-                    try:
-                        if hasattr(moto2, 'muscle_unit'):
-                            h.setpointer(moto2.muscle_unit(0.5)._ref_F_fHill, 'fhill2', stim)
-                            print(f"   ✅ Second pointer set (fhill2)")
-                    except Exception as ptr2_error:
-                        print(f"   ⚠️ Second pointer warning: {ptr2_error}")
-
-                    pc.set_gid2node(gid, rank)
-                    ncstim = h.NetCon(stim, None)
-                    ncstim.weight[0] = weight
-                    self.netcons.append(ncstim)
-                    pc.cell(gid, ncstim)
-
-                log_gid_by_lookup(self, gid, "Ia")
-                print(f"🎯 IaGenerator creation completed successfully: GID={gid}")
+                # log_gid_by_lookup(self, gid, "Ia")
+                # print(f"🎯 IaGenerator creation completed successfully: GID={gid}")
                 logging.info(f"IaGenerator creation completed: GID={gid}")
 
             except Exception as ia_error:
-                print(f"❌ IaGenerator creation failed: {ia_error}")
+                # print(f"❌ IaGenerator creation failed: {ia_error}")
                 logging.error(f"IaGenerator creation failed: {ia_error}")
                 # Still increment GID to maintain consistency
                 pass
-
-        else:
-            # Other ranks just register the GID assignment
-            pc.set_gid2node(gid, 0)
 
         self.gener_Iagids.append(gid)
         return gid
