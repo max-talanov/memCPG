@@ -7,6 +7,7 @@ class LEG:
         logging.info(f"Hello from rank {rank} of {nhost}")
         logging.info("NEURON version: " + h.nrnversion())
         self.name = "LEG left?=" + str(leg_l)
+        self.leg_l = leg_l
         self.threshold = 10
         self.delay = 1
         self.nAff = 5 #15 #35 #5
@@ -78,13 +79,13 @@ class LEG:
         self.V0d = addpool(self, self.nInt, "V0d", "int")
 
         self.CV = sum(self.CV, [])
+        self.V3F = sum(self.V3F, [])
 
         '''sensory and muscle afferents and brainstem and V3F'''
         self.Ia_aff_E = addpool(self, self.nAff, "Ia_aff_E", "aff")
         self.Ia_aff_F = addpool(self, self.nAff, "Ia_aff_F", "aff")
         # self.BS_aff_E = addpool(self, self.nAff, "BS_aff_E", "aff")
         # self.BS_aff_F = addpool(self, self.nAff, "BS_aff_F", "aff")
-        self.V3F = addpool(self, self.nInt, "V3F", "int")
         
         '''muscles'''
         self.muscle_E = addpool(self, self.nMn, "muscle_E", "muscle")
@@ -110,7 +111,7 @@ class LEG:
         for layer in range(CV_number):
             self.dict_CV_gener[layer] = []
             for i in range(step_number):
-                step_leg = 10 + speed * layer + i * (speed * CV_number + CV_0_len + one_step_time) + 7 - layer * 12
+                step_leg = 10 + speed * layer + i * (2 * one_step_time) + 7 - layer * 12
                 if leg_l:
                     step_leg += one_step_time
                 self.dict_CV_gener[layer].append(
@@ -169,7 +170,6 @@ class LEG:
                 
         '''cutaneous inputs'''
         for layer in range(CV_number):
-            connectcells(self, self.dict_CV_gener[layer], self.dict_CV_pool[layer], 0.15 * k * speed, 2)
             connectcells(self, self.dict_CV_pool[layer], self.dict_RG_E[layer], 0.0035 * k * speed, 3, stdptype=stdp_CV)
 
         '''Ia2motor'''
@@ -187,7 +187,7 @@ class LEG:
             connectcells(self, self.dict_RG_F[layer], self.V0d, 0.75, 3)
             connectcells(self, self.dict_RG_E[layer], self.InE, 2.75, 3)
             connectcells(self, self.dict_RG_F[layer], self.InF, 2.75, 3)
-            connectcells(self, self.dict_RG_F[layer], self.V3F, 1.5, 3)
+            connectcells(self, self.dict_RG_F[layer], self.dict_V3F[layer], 1.5, 3)
 
         '''motor2muscles'''
         connectcells(self, self.mns_E, self.muscle_E, 10, 2, inhtype=False, N=45, sect="muscle")
@@ -333,9 +333,11 @@ class LEG:
         connectcells(self, self.InF, self.InE, 0.12, 1, inhtype=True,
                      pre_name="InF_inh_InE", post_name="InE")
 
+        phase_shift = one_step_time if self.leg_l else 0.0
         n_kick_syn = 10
-        kick_E_gid = self._make_kick_stim(start=8.0, interval=5.0, number=8)
-        kick_F_gid = self._make_kick_stim(start=12.0, interval=5.0, number=6)
+        kick_E_gid = self._make_kick_stim(start=8.0 + phase_shift, interval=5.0, number=8)
+        kick_F_gid = self._make_kick_stim(start=8.0 + phase_shift + one_step_time,
+                                          interval=5.0, number=6)
 
         for layer in range(CV_number):
             genconnect(self, kick_E_gid, self.dict_RG_E[layer],
@@ -378,8 +380,8 @@ class LEG:
             start_time_e = 15 + one_step_time * 2 * step
             start_time_f = 15 + one_step_time * (1 + 2 * step)
             if leg_l:
-                start_time_e += one_step_time + 4
-                start_time_f += one_step_time + 4
+                start_time_e += one_step_time
+                start_time_f += one_step_time
             E_ia_gids.append(self.addIagener(self.muscle_E, self.muscle_F, start_time_e, weight=0.1))
             F_ia_gids.append(
                 self.addIagener(self.muscle_F, self.muscle_E, start_time_f, weight=0.1))

@@ -135,7 +135,6 @@ def connectcells(leg, pre_cells, post_cells, weight=1.0, delay=1, threshold=10, 
                             nc = pc.gid_connect(src_gid, syn)
                             nc.delay = delay
                             nc.weight[0] = weight
-                            nc.threshold = threshold
                             leg.netcons.append(nc)
 
                             try:
@@ -148,13 +147,11 @@ def connectcells(leg, pre_cells, post_cells, weight=1.0, delay=1, threshold=10, 
                             presyn = pc.gid_connect(src_gid, stdpmech)
                             presyn.delay = delay
                             presyn.weight[0] = 2
-                            presyn.threshold = threshold
                             leg.presyns.append(presyn)
 
                             pstsyn = pc.gid_connect(post_gid, stdpmech)
                             pstsyn.delay = delay
                             pstsyn.weight[0] = -2
-                            pstsyn.threshold = threshold
                             leg.postsyns.append(pstsyn)
 
                             pointer_ok = False
@@ -192,7 +189,6 @@ def connectcells(leg, pre_cells, post_cells, weight=1.0, delay=1, threshold=10, 
 
                             nc = pc.gid_connect(src_gid, syn)
                             nc.weight[0] = rng.gauss(weight, weight / 5)
-                            nc.threshold = threshold
                             nc.delay = rng.gauss(delay, delay / 5)
                             leg.netcons.append(nc)
                             # print(f"     ✅ Regular NetCon created")
@@ -248,7 +244,6 @@ def genconnect(leg, gen_gid, afferents_gids, weight, delay, inhtype=False, N=50,
                     syn = syn_list[j]
 
                     nc = pc.gid_connect(gen_gid, syn)
-                    nc.threshold = leg.threshold
                     nc.delay = random.gauss(delay, delay / 5)
                     nc.weight[0] = random.gauss(weight, weight / 6)
 
