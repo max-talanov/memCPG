@@ -22,8 +22,10 @@ class BSMode:
     drive_weight_In: float  # synaptic weight onto InE / InF (Inhibitory interneurons for mutual inhibition seeding)
 
     rg_self_weight: float  # RG→RG recurrent excitation (within-nucleus)
-    InEF_inh_weight: float  # InE→RG_F / InF→RG_E inhibitory weight
+    InE_to_RG_F_weight: float
+    InF_to_RG_E_weight: float
     rg2mns_weight: float  # RG → motoneuron drive
+    v3f_cross_weight: float
 
 
 # Pre-defined parameters for Walking mode
@@ -34,9 +36,11 @@ WALK = BSMode(
     drive_freq_hz=40.0,
     drive_weight_RG=1.2,
     drive_weight_In=0.4,
-    rg_self_weight=0.35,
-    InEF_inh_weight=0.5,
+    rg_self_weight=0.25,
+    InE_to_RG_F_weight=0.5,
+    InF_to_RG_E_weight=0.8,
     rg2mns_weight=2.75,
+    v3f_cross_weight=0.0,
 )
 
 # Pre-defined parameters for Running mode (higher frequency, stronger weights)
@@ -48,8 +52,10 @@ RUN = BSMode(
     drive_weight_RG=1.8,
     drive_weight_In=0.9,
     rg_self_weight=0.55,
-    InEF_inh_weight=0.7,
+    InE_to_RG_F_weight=0.7,
+    InF_to_RG_E_weight=0.7,
     rg2mns_weight=3.5,
+    v3f_cross_weight=0.5,
 )
 
 
@@ -116,10 +122,11 @@ class BSCommand:
         # Configuration for left and right legs:
         # Tuple format: (leg_object, gid_store, label, Extensor_delay, Flexor_delay, Extensor_weight_scale, Flexor_weight_scale)
         # Note the asymmetrical delays and scales to ensure anti-phase rhythm between left and right.
+        # Start in the same diagonal phase as the stable reference run:
+        # right extensor together with left flexor.
         leg_configs = [
-            (LEG_L, self.left_cmd_gids, "LEFT", 1.0, 1.0, 1.0, 0.0),
-
-            (LEG_R, self.right_cmd_gids, "RIGHT", 1.0, 1.0, 0.0, 1.0),
+            (LEG_L, self.left_cmd_gids, "LEFT", 1.0, 1.0, 0.0, 1.0),
+            (LEG_R, self.right_cmd_gids, "RIGHT", 1.0, 1.0, 1.0, 0.0),
         ]
 
         for leg_obj, gid_store, label, e_delay, f_delay, e_scale, f_scale in leg_configs:
@@ -199,14 +206,14 @@ def apply_bs_mode_to_cpg(LEG_L, LEG_R, mode: BSMode) -> None:
             leg_obj,
             src_pools=leg_obj.InE,
             dst_pools=leg_obj.RG_F,
-            new_weight=mode.InEF_inh_weight,
+            new_weight=mode.InE_to_RG_F_weight,
             label="InE->RG_F inhibition",
         )
         _scale_connections_by_name(
             leg_obj,
             src_pools=leg_obj.InF,
             dst_pools=leg_obj.RG_E,
-            new_weight=mode.InEF_inh_weight,
+            new_weight=mode.InF_to_RG_E_weight,
             label="InF->RG_E inhibition",
         )
 

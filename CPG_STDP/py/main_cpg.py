@@ -84,12 +84,8 @@ if __name__ == '__main__':
     logging.info("=== MAIN EXECUTION START ===")
     logging.info(f"Rank {rank}/{nhost}, N={N}, Step number: {step_number}, speed={speed}, versions={versions}")
 
-    if rank == 0 and not os.path.isdir(file_name):
-        os.mkdir(file_name)
-        print(f"   ✅ Created directory: {file_name}")
-
-    # Synchronize all ranks before proceeding
-    pc.barrier()
+    if rank == 0:
+        print(f"   ✅ Clean output directory: {file_name}")
 
     for i in range(versions):
         print(f"🔄 [rank {rank}] VERSION {i + 1}/{versions} START")
@@ -100,11 +96,8 @@ if __name__ == '__main__':
             LEG_L = LEG(speed, bs_fr, 100, step_number, N, leg_l=True)
             LEG_R = LEG(speed, bs_fr, 100, step_number, N, leg_l=False)
 
-            LEG_L.setup_autonomous_rhythm()
-            LEG_R.setup_autonomous_rhythm()
-
             bs_cmd = create_connect_bs_command(LEG_L, LEG_R, mode=WALK)
-            add_external_connections(LEG_L, LEG_R)
+            add_external_connections(LEG_L, LEG_R, mode=WALK)
             #create_connect_bs(LEG_R, LEG_L)
             #add_external_connections(LEG_R, LEG_L)
             print(f"   ✅ CPG network created successfully")

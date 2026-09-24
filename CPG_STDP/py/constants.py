@@ -63,6 +63,7 @@ def check_mpi_status():
 # Initialize MPI properly
 pc, rank, nhost = check_mpi_status()
 file_name = 'res_alina_50_stdp'
+RANDOM_SEED = 1729
 
 N = 5
 speed = 100

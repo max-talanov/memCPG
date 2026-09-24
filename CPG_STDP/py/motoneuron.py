@@ -170,7 +170,7 @@ class motoneuron(Axon):
         nc: NEURON NetCon
             connection between neurons
         '''
-        nc = h.NetCon(self.node[-1](0.5)._ref_v, target, sec=self.node[-1])
+        nc = h.NetCon(self.node[0](0.5)._ref_v, target, sec=self.node[0])
         nc.threshold = -20
         return nc
 

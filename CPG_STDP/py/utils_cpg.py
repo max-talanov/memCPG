@@ -90,14 +90,17 @@ def connectcells(leg, pre_cells, post_cells, weight=1.0, delay=1, threshold=10, 
         f"stdp={stdptype}, inh={inhtype}"
     )
 
-    nsyn_requested = random.randint(N, N + 15)
     connection_count = 0
     pre_cells_list = list(pre_cells)
+    connection_key = (
+        f"{pre_name}:{post_name}:{pre_cells_list}:"
+        f"{weight}:{delay}:{inhtype}:{stdptype}"
+    )
 
     for post_idx, post_gid in enumerate(post_cells):
         if pc.gid_exists(post_gid):
             try:
-                rng = random.Random(f"{pre_name}_{post_name}_{post_gid}")
+                rng = random.Random(f"{connection_key}:{post_gid}")
 
                 target = pc.gid2cell(post_gid)
                 target_type = type(target).__name__
@@ -244,8 +247,8 @@ def genconnect(leg, gen_gid, afferents_gids, weight, delay, inhtype=False, N=50,
                     syn = syn_list[j]
 
                     nc = pc.gid_connect(gen_gid, syn)
-                    nc.delay = random.gauss(delay, delay / 5)
-                    nc.weight[0] = random.gauss(weight, weight / 6)
+                    nc.delay = rng.gauss(delay, delay / 5)
+                    nc.weight[0] = rng.gauss(weight, weight / 6)
 
                     # ---------------------------------------
                     # ЛОГИРУЕМ СОЕДИНЕНИЕ
@@ -273,16 +276,17 @@ def genconnect(leg, gen_gid, afferents_gids, weight, delay, inhtype=False, N=50,
 def motodiams(number):
     nrn_number = number
     standby_percent = 70
-    active_percent = 100 - standby_percent
-
     standby_size = int(nrn_number * standby_percent / 100)
     active_size = nrn_number - standby_size
 
     loc_active, scale_active = 27, 3
     loc_stanby, scale_stanby = 44, 4
 
-    x2 = np.concatenate([np.random.normal(loc=loc_active, scale=scale_active, size=active_size),
-                         np.random.normal(loc=loc_stanby, scale=scale_stanby, size=standby_size)])
+    rng = np.random.default_rng(RANDOM_SEED + number)
+    x2 = np.concatenate([
+        rng.normal(loc=loc_active, scale=scale_active, size=active_size),
+        rng.normal(loc=loc_stanby, scale=scale_stanby, size=standby_size),
+    ])
 
     return x2
 
@@ -309,8 +313,8 @@ def add_bs_geners(freq, LEG_L, LEG_R):
         for leg_obj, start, gid_list in (
             (LEG_R, f_start, right_F_bs_gids),
             (LEG_R, e_start, right_E_bs_gids),
-            (LEG_L, f_start, left_E_bs_gids),
-            (LEG_L, e_start, left_F_bs_gids),
+            (LEG_L, f_start, left_F_bs_gids),
+            (LEG_L, e_start, left_E_bs_gids),
         ):
             gid = get_gid()
             if _is_rank0:
@@ -376,6 +380,11 @@ def addgener(leg, start, freq, cv=False, r=True):
             rng = random.Random(gid)
             stim.start = rng.uniform(start - 3, start + 3)
             stim.noise = 0.05
+            if hasattr(stim, "noiseFromRandom"):
+                nrn_rng = h.Random()
+                nrn_rng.Random123(RANDOM_SEED, gid, 0)
+                stim.noiseFromRandom(nrn_rng)
+                leg.netstims.append(nrn_rng)
         else:
             stim.start = start
 
@@ -450,9 +459,22 @@ def create_connect_bs_command(LEG_L, LEG_R, mode=None):
     return cmd
 
 
-def add_external_connections(LEG_L, LEG_R):
-    connectcells(LEG_L, LEG_L.V3F, LEG_R.RG_F, weight=0.5, delay=3)
-    connectcells(LEG_R, LEG_R.V3F, LEG_L.RG_F, weight=0.5, delay=3)
+def add_external_connections(LEG_L, LEG_R, mode=None):
+    if mode is None:
+        from bs_command import WALK
+        mode = WALK
+
+    if mode.v3f_cross_weight > 0:
+        connectcells(
+            LEG_L, LEG_L.V3F, LEG_R.RG_F,
+            weight=mode.v3f_cross_weight, delay=3,
+            pre_name="V3F_L", post_name="RG_F_R",
+        )
+        connectcells(
+            LEG_R, LEG_R.V3F, LEG_L.RG_F,
+            weight=mode.v3f_cross_weight, delay=3,
+            pre_name="V3F_R", post_name="RG_F_L",
+        )
     connectcells(LEG_L, LEG_L.V0v, LEG_R.In1, weight=1.3, delay=3)
     connectcells(LEG_R, LEG_R.V0v, LEG_L.In1, weight=1.3, delay=3)
     connectcells(LEG_L, LEG_L.V0d, LEG_R.RG_F, weight=1.3, delay=3, inhtype=True)
