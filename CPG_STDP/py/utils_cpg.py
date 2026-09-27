@@ -142,6 +142,7 @@ def connectcells(leg, pre_cells, post_cells, weight=1.0, delay=1, threshold=10, 
 
                             try:
                                 stdpmech = h.STDP(0, stdp_dummy)
+                                stdpmech.wmax = weight * STDP_MAX_WEIGHT_FACTOR
                                 leg.stdpmechs.append(stdpmech)
                             except Exception as stdp_error:
                                 logging.error(f"STDP creation error: {stdp_error}")

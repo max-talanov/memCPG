@@ -79,6 +79,9 @@ step_number = 6 #quick test #50 # 70 max that works  # 100 weights are not recor
 one_step_time = int((6 * speed + CV_0_len) / (int(1000 / bs_fr))) * (int(1000 / bs_fr))
 time_sim = (one_step_time * step_number + 30)*2
 
+IA_MIN_RATE_HZ = 40  # Ia generator never drops below its baseline rate inside its phase
+STDP_MAX_WEIGHT_FACTOR = 2.0  # prevent CV->RG_E weights from dominating the rhythm
+
 k_nrns = 0
 k_name = 1
 

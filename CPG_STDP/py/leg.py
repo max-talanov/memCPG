@@ -282,6 +282,14 @@ class LEG:
             stim.start = start
             stim.interval = interval
             stim.number = number
+            try:
+                stim.dur = interval * (number - 1)
+                stim.vmin = IA_MIN_RATE_HZ
+            except LookupError as err:
+                raise RuntimeError(
+                    "IaGenerator has no 'dur'/'vmin' parameters: recompile the "
+                    "mechanisms (nrnivmodl mod_files) after updating iagen.mod"
+                ) from err
 
             h.setpointer(
                 muscle_cell.muscle_unit(0.5)._ref_F_fHill, "fhill", stim
@@ -323,8 +331,7 @@ class LEG:
             start_time_e = 15 + one_step_time * 2 * step
             start_time_f = 15 + one_step_time * (1 + 2 * step)
             if leg_l:
-                start_time_e += one_step_time
-                start_time_f += one_step_time
+                start_time_e, start_time_f = start_time_f, start_time_e
             E_ia_gids.append(self.addIagener(self.muscle_E, self.muscle_F, start_time_e, weight=0.1))
             F_ia_gids.append(
                 self.addIagener(self.muscle_F, self.muscle_E, start_time_f, weight=0.1))

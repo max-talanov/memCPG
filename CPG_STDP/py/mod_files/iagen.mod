@@ -4,6 +4,7 @@ NEURON	{
   RANGE y
   RANGE interval, number, start
   RANGE noise, freq, mean, vel, invl, v0
+  RANGE vmin, dur
 }
 
 PARAMETER {
@@ -13,6 +14,8 @@ PARAMETER {
 	freq        = 100
     mean        = 1
 	interval	= 10 (ms) <1e-9,1e9>: time between spikes (msec)
+	vmin        = 1 : lower bound of the firing rate (Hz); 1 = legacy behaviour
+	dur         = -1 (ms) : burst duration; <= 0 = legacy invl(t)*(number-1)
 }
 
 ASSIGNED {
@@ -66,7 +69,11 @@ PROCEDURE init_sequence(t(ms)) {
 	if (number > 0) {
 		on = 1
 		event = t
-		end = t + 1e-6 + invl(t)*(number-1)
+		if (dur > 0) {
+			end = t + 1e-6 + dur
+		} else {
+			end = t + 1e-6 + invl(t)*(number-1)
+		}
 		: printf("init_sequence, number: %g, event: %g, end: %g \n", number, event, end)
 	}
 }
@@ -90,7 +97,7 @@ FUNCTION invl(t (ms)) (ms) {
 			vel = vel - 0.0025*fhill2*(t-t0)
 		}
 	}
-	if (vel < 1) {vel = 1}
+	if (vel < vmin) {vel = vmin}
 	diff_t0 = t - t0
 	if (diff_t0 > 100 && vel > 1) {vel = 40}
 	: printf("t: %g, t0: %g, len2: %g, fhill2: %g, fhill0 %g, fhill %g, vel: %g, ", t, t0 , len2, fhill2, fhill0, fhill, vel)

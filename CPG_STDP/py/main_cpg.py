@@ -93,7 +93,12 @@ if __name__ == '__main__':
 
         try:
             print(f"   Creating CPG network...")
+            random.seed(RANDOM_SEED + rank)
+            np.random.seed(RANDOM_SEED + rank)
             LEG_L = LEG(speed, bs_fr, 100, step_number, N, leg_l=True)
+
+            random.seed(RANDOM_SEED + rank)
+            np.random.seed(RANDOM_SEED + rank)
             LEG_R = LEG(speed, bs_fr, 100, step_number, N, leg_l=False)
 
             bs_cmd = create_connect_bs_command(LEG_L, LEG_R, mode=WALK)
