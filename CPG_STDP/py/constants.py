@@ -81,6 +81,7 @@ time_sim = (one_step_time * step_number + 30)*2
 
 IA_MIN_RATE_HZ = 40  # Ia generator never drops below its baseline rate inside its phase
 STDP_MAX_WEIGHT_FACTOR = 2.0  # prevent CV->RG_E weights from dominating the rhythm
+STDP_HEBB_STEP_FRACTION = 0.01  # at most 1% of the initial weight per LTP event
 
 k_nrns = 0
 k_name = 1
