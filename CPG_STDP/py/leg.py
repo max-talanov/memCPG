@@ -1,6 +1,22 @@
 from constants import *
 from utils_cpg import *
 
+
+def cut_recovery_stdp(w_ia, injury=None, hebb_fraction=None, ltd_ratio=None):
+    '''STDP parameters of CUT -> RG_E after injury ({} for the intact network).'''
+    injury = INJURY if injury is None else injury
+    hebb_fraction = STDP_RECOVERY_HEBB_FRACTION if hebb_fraction is None else hebb_fraction
+    ltd_ratio = STDP_RECOVERY_LTD_RATIO if ltd_ratio is None else ltd_ratio
+    if injury <= 0:
+        return {}
+    cut_wmax = STDP_RECOVERY_WMAX_FACTOR * injury * w_ia
+    return dict(
+        stdp_wmax=cut_wmax,
+        stdp_hebbwt=hebb_fraction * cut_wmax,
+        stdp_antiwt=-ltd_ratio * hebb_fraction,
+    )
+
+
 class LEG:
 
     def __init__(self, speed, bs_fr, inh_p, step_number, n, leg_l=False):
@@ -115,7 +131,7 @@ class LEG:
                 if leg_l:
                     step_leg += one_step_time
                 self.dict_CV_gener[layer].append(
-                    addgener(self, step_leg, cfr, cv=True))
+                    addgener(self, step_leg, cfr, cv=True, rate_scale=1 - BWS))
                     ## int((one_step_time / CV_number) * 0.15), cv=True))
         #
         # '''Generators'''
@@ -160,17 +176,22 @@ class LEG:
         w_Ia =  0.3 #0.3 #1.3
         stdp_Ia = False
         stdp_CV = True
-        
+
+        n_before = len(self.netcons)
         connectcells(self, self.Ia_aff_E, self.RG_E, weight=w_Ia, delay=3, stdptype=stdp_Ia)
+        for nc in self.netcons[n_before:]:
+            nc.weight[0] *= 1 - INJURY
         connectcells(self, self.Ia_aff_F, self.RG_F, weight=w_Ia, delay=3, stdptype=stdp_Ia)
-        
+
         for layer in range(CV_number):
             for gen_gid in self.dict_CV_gener[layer]:
                 genconnect(self, gen_gid, self.dict_CV_pool[layer], 0.15 * k * speed, 2, False, 20)
-                
+
         '''cutaneous inputs'''
+        cut_stdp = cut_recovery_stdp(w_Ia)
         for layer in range(CV_number):
-            connectcells(self, self.dict_CV_pool[layer], self.dict_RG_E[layer], 0.0035 * k * speed, 3, stdptype=stdp_CV)
+            connectcells(self, self.dict_CV_pool[layer], self.dict_RG_E[layer], 0.0035 * k * speed, 3,
+                         stdptype=stdp_CV, **cut_stdp)
 
         '''Ia2motor'''
         connectcells(self, self.Ia_aff_E, self.mns_E, 1.55, 2)

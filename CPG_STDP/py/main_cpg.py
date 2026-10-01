@@ -64,6 +64,33 @@ def prun(speed, step_number):
         logging.error(f"Simulation error: {sim_error}")
         raise sim_error
 
+STDP_DIR_LEFT = f'./{file_name}/stdp_1'
+STDP_DIR_RIGHT = f'./{file_name}/stdp_2'
+
+
+def save_stdp_weights(leg, stdp_dir, version):
+    stdp_count = 0
+    for src_gid, post_gid, weight_vec in leg.weight_changes_vectors:
+        try:
+            src_obj = pc.gid2cell(src_gid) if pc.gid_exists(src_gid) else None
+            post_obj = pc.gid2cell(post_gid) if pc.gid_exists(post_gid) else None
+
+            src_type = type(src_obj).__name__ if src_obj is not None else "None"
+            post_type = type(post_obj).__name__ if post_obj is not None else "None"
+
+            safe_name = safe_filename(f'{src_type}_{src_gid}_to_{post_type}_{post_gid}.hdf5')
+            fname = f'{stdp_dir}/{safe_name}'
+
+            with hdf5.File(fname, 'w') as file:
+                file.create_dataset(f'#0_step_{version}', data=np.array(weight_vec), compression="gzip")
+            stdp_count += 1
+
+        except Exception as e:
+            print(f"      ⚠️ Error saving STDP weight {src_gid} → {post_gid}: {e}")
+
+    logging.info(f"      ✅ [rank {rank}] Saved {stdp_count} STDP weight change files to {stdp_dir}")
+
+
 def finish():
     ''' proper exit '''
     pc.runworker()
@@ -83,9 +110,13 @@ if __name__ == '__main__':
     print(f"   Total simulation time: {time_sim} ms")
     logging.info("=== MAIN EXECUTION START ===")
     logging.info(f"Rank {rank}/{nhost}, N={N}, Step number: {step_number}, speed={speed}, versions={versions}")
+    logging.info(f"Mode: speed={speed}, BWS={BWS}, INJURY={INJURY}, output={file_name}")
+    print(f"   Mode: speed={speed}, BWS={BWS}, INJURY={INJURY}, output={file_name}")
 
     if rank == 0:
-        print(f"   ✅ Clean output directory: {file_name}")
+        for directory in (file_name, STDP_DIR_LEFT, STDP_DIR_RIGHT):
+            os.makedirs(directory, exist_ok=True)
+        print(f"   ✅ Output directory: {file_name}")
 
     for i in range(versions):
         print(f"🔄 [rank {rank}] VERSION {i + 1}/{versions} START")
@@ -242,34 +273,9 @@ if __name__ == '__main__':
                  muscle_am_recorders_l, muscle_am_recorders_r)
             gc.collect()
 
-            if rank == 0:
-                logging.info(f"      Saving STDP weight changes...")
-                stdp_dir = f'./{file_name}/stdp_1'
-                if not os.path.exists(stdp_dir):
-                    os.makedirs(stdp_dir)
-                    print(f"      ✅ Created STDP directory: {stdp_dir}")
-
-                stdp_count = 0
-                for src_gid, post_gid, weight_vec in LEG_L.weight_changes_vectors:
-                    try:
-                        src_obj = pc.gid2cell(src_gid) if pc.gid_exists(src_gid) else None
-                        post_obj = pc.gid2cell(post_gid) if pc.gid_exists(post_gid) else None
-
-                        src_type = type(src_obj).__name__ if src_obj is not None else "None"
-                        post_type = type(post_obj).__name__ if post_obj is not None else "None"
-
-                        # Сформировать безопасное имя файла
-                        safe_name = safe_filename(f'{src_type}_{src_gid}_to_{post_type}_{post_gid}.hdf5')
-                        fname = f'{stdp_dir}/{safe_name}'
-
-                        with hdf5.File(fname, 'w') as file:
-                            file.create_dataset(f'#0_step_{i}', data=np.array(weight_vec), compression="gzip")
-                        stdp_count += 1
-
-                    except Exception as e:
-                        print(f"      ⚠️ Error saving STDP weight {src_gid} → {post_gid}: {e}")
-
-                logging.info(f"      ✅ Saved {stdp_count} STDP weight change files")
+            logging.info(f"      Saving STDP weight changes...")
+            save_stdp_weights(LEG_L, STDP_DIR_LEFT, i)
+            save_stdp_weights(LEG_R, STDP_DIR_RIGHT, i)
 
             print(f"   ✅ All results saved successfully")
             logging.info("Results recorded")

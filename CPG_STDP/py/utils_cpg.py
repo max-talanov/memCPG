@@ -81,7 +81,8 @@ def addpool(leg, num, name, neurontype="int") -> list:
 
 
 def connectcells(leg, pre_cells, post_cells, weight=1.0, delay=1, threshold=10, inhtype=False,
-                 stdptype=False, N=50, sect="int", pre_name="UNKNOWN_PRE", post_name="UNKNOWN_POST"):
+                 stdptype=False, N=50, sect="int", pre_name="UNKNOWN_PRE", post_name="UNKNOWN_POST",
+                 stdp_wmax=None, stdp_hebbwt=None, stdp_antiwt=None):
     #print(f"🔗 [rank {rank}] connectcells: pre_cells={len(pre_cells)}, post_cells={len(post_cells)}")
     #print(f"   weight={weight}, delay={delay}, threshold={threshold}, inhtype={inhtype}, stdptype={stdptype}")
     logging.info(
@@ -142,8 +143,10 @@ def connectcells(leg, pre_cells, post_cells, weight=1.0, delay=1, threshold=10, 
 
                             try:
                                 stdpmech = h.STDP(0, stdp_dummy)
-                                stdpmech.wmax = weight * STDP_MAX_WEIGHT_FACTOR
-                                stdpmech.hebbwt = weight * STDP_HEBB_STEP_FRACTION
+                                stdpmech.wmax = weight * STDP_MAX_WEIGHT_FACTOR if stdp_wmax is None else stdp_wmax
+                                stdpmech.hebbwt = weight * STDP_HEBB_STEP_FRACTION if stdp_hebbwt is None else stdp_hebbwt
+                                if stdp_antiwt is not None:
+                                    stdpmech.antiwt = stdp_antiwt
                                 stdpmech.softthresh = 1
                                 leg.stdpmechs.append(stdpmech)
                             except Exception as stdp_error:
@@ -358,7 +361,7 @@ def log_gid_by_lookup(leg, gid: int, name):
         print(f"[rank {rank}] Added GID {gid} (type: {typename})")
 
 
-def addgener(leg, start, freq, cv=False, r=True):
+def addgener(leg, start, freq, cv=False, r=True, rate_scale=1.0):
     '''
     Creates generator and returns generator gid
     Parameters
@@ -399,6 +402,12 @@ def addgener(leg, start, freq, cv=False, r=True):
             stim.number = int(1.45 * base_cv)
         else:
             stim.number = int(one_step_time / interval) - 2
+
+        if rate_scale != 1.0:
+            duration = interval * stim.number
+            stim.number = max(1, round(stim.number * rate_scale))
+            interval = duration / stim.number
+            stim.interval = interval
 
         # -----------------------------------------
         # ЛОГИРУЕМ ВСЕ ПАРАМЕТРЫ STIM
