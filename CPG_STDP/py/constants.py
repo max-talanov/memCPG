@@ -84,10 +84,15 @@ STDP_MAX_WEIGHT_FACTOR = 2.0  # prevent CV->RG_E weights from dominating the rhy
 STDP_HEBB_STEP_FRACTION = 0.01  # at most 1% of the initial weight per LTP event
 
 '''Locomotion mode / injury, set per run from the environment (defaults = intact network):
-   CPG_SPEED=125|100|50  CPG_BWS=0..0.9  CPG_INJURY=0..1  CPG_OUT=<results dir>'''
+   CPG_SPEED=125|100|50  CPG_K=0.017|0.01  CPG_BWS=0..0.9  CPG_INJURY=0..1  CPG_OUT=<results dir>'''
 speed = int(os.environ.get("CPG_SPEED", speed))
+# CUT strength per stepping mode, as in rat_cpg_stdp.py: plantar 0.017, TOE 0.01, QUAD 0.003, AIR 0.001
+k = float(os.environ.get("CPG_K", k))
 BWS = float(os.environ.get("CPG_BWS", 0.0))  # body weight support: scales the CUT afferent rate by (1 - BWS)
-INJURY = float(os.environ.get("CPG_INJURY", 0.0))  # fraction of the Ia_aff_E -> RG_E drive removed at t=0
+# injury of the extensor side, see leg.injury_scales(): fraction of the Ia_aff_E drive (to RG_E and
+# directly to mns_E) removed at t=0; at INJURY = 1 CUT -> RG_E is CUT_RESIDUAL of the plantar weight
+INJURY = float(os.environ.get("CPG_INJURY", 0.0))
+CUT_RESIDUAL = float(os.environ.get("CPG_CUT_RESIDUAL", 0.015))  # calibrate_injury.py: visible in all modes
 if not 0.0 <= BWS < 1.0:
     raise ValueError(f"CPG_BWS must be in [0, 1), got {BWS}")
 if not 0.0 <= INJURY <= 1.0:
@@ -96,12 +101,12 @@ one_step_time = int((6 * speed + CV_0_len) / (int(1000 / bs_fr))) * (int(1000 / 
 time_sim = (one_step_time * step_number + 30)*2
 if "CPG_OUT" in os.environ:
     file_name = os.environ["CPG_OUT"]
-elif (speed, BWS, INJURY) != (100, 0.0, 0.0):
-    file_name = f"res_sp{speed}_bws{BWS:g}_inj{INJURY:g}"
+elif (speed, k, BWS, INJURY) != (100, 0.017, 0.0, 0.0):
+    file_name = f"res_sp{speed}_k{k:g}_bws{BWS:g}_inj{INJURY:g}"
 
 STDP_RECOVERY_WMAX_FACTOR = 1.0  # wmax = factor * INJURY * w_Ia
-STDP_RECOVERY_HEBB_FRACTION = 0.02  # LTP step, fraction of wmax per event (weight levels off within 6 steps)
-STDP_RECOVERY_LTD_RATIO = 1.0  # LTD step at w = wmax relative to the raw LTP step
+STDP_RECOVERY_HEBB_FRACTION = 0.02  # LTP step, fraction of the post-injury CUT weight per event
+STDP_RECOVERY_LTD_RATIO = 1.0  # LTD step at w = wmax relative to the LTP step
 
 k_nrns = 0
 k_name = 1

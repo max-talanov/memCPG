@@ -2,18 +2,43 @@ from constants import *
 from utils_cpg import *
 
 
-def cut_recovery_stdp(w_ia, injury=None, hebb_fraction=None, ltd_ratio=None):
-    '''STDP parameters of CUT -> RG_E after injury ({} for the intact network).'''
+CUT_REFERENCE_WEIGHT = 0.0035 * 0.017 * 100  # CUT -> RG_E of plantar walking at speed 100
+
+
+def injury_scales(injury=None, cut_residual=None):
+    '''Weight factors of the extensor pathways after injury (all 1 for the intact network).
+    Every input below fires RG_E / mns_E on its own when left at full strength: the Ia_aff_E
+    and CUT pools fire in synchronous volleys, which drive RG_E even at 1% of their weight.'''
+    injury = INJURY if injury is None else injury
+    cut_residual = CUT_RESIDUAL if cut_residual is None else cut_residual
+    w_cut = 0.0035 * k * speed
+    return {
+        "ia_rg": 1 - injury,  # Ia_aff_E -> RG_E
+        "ia_mn": 1 - injury,  # Ia_aff_E -> mns_E: monosynaptic path that bypasses RG_E
+        # CUT -> RG_E: after a complete injury the same weak synapse (cut_residual of the plantar
+        # weight, near the RG_E firing threshold) in every mode; the modes then differ in how
+        # many CUT volleys arrive (speed, BWS)
+        "cut": 1 - injury + injury * cut_residual * CUT_REFERENCE_WEIGHT / w_cut,
+    }
+
+
+def cut_recovery_stdp(w_ia, w_cut, injury=None, hebb_fraction=None, ltd_ratio=None):
+    '''STDP parameters of CUT -> RG_E after injury ({} for the intact network).
+    w_cut is the CUT weight right after the injury; LTP steps are a fraction of it, so a
+    few pairings cannot undo the injury at once.'''
     injury = INJURY if injury is None else injury
     hebb_fraction = STDP_RECOVERY_HEBB_FRACTION if hebb_fraction is None else hebb_fraction
     ltd_ratio = STDP_RECOVERY_LTD_RATIO if ltd_ratio is None else ltd_ratio
     if injury <= 0:
         return {}
+    # CUT -> RG_E may grow up to the removed Ia weight
     cut_wmax = STDP_RECOVERY_WMAX_FACTOR * injury * w_ia
+    hebbwt = hebb_fraction * w_cut
     return dict(
         stdp_wmax=cut_wmax,
-        stdp_hebbwt=hebb_fraction * cut_wmax,
-        stdp_antiwt=-ltd_ratio * hebb_fraction,
+        stdp_hebbwt=hebbwt,
+        # stdp.mod scales LTD by synweight**2/wmax: at w = wmax it equals ltd_ratio * the LTP step
+        stdp_antiwt=-ltd_ratio * hebbwt / cut_wmax,
     )
 
 
@@ -177,10 +202,11 @@ class LEG:
         stdp_Ia = False
         stdp_CV = True
 
-        n_before = len(self.netcons)
-        connectcells(self, self.Ia_aff_E, self.RG_E, weight=w_Ia, delay=3, stdptype=stdp_Ia)
-        for nc in self.netcons[n_before:]:
-            nc.weight[0] *= 1 - INJURY
+        # injury: the extensor pathways keep their synapses and delays (same as the intact
+        # network), only the weights are scaled, see injury_scales()
+        scales = injury_scales()
+        self._scaled(scales["ia_rg"], lambda: connectcells(
+            self, self.Ia_aff_E, self.RG_E, weight=w_Ia, delay=3, stdptype=stdp_Ia))
         connectcells(self, self.Ia_aff_F, self.RG_F, weight=w_Ia, delay=3, stdptype=stdp_Ia)
 
         for layer in range(CV_number):
@@ -188,13 +214,20 @@ class LEG:
                 genconnect(self, gen_gid, self.dict_CV_pool[layer], 0.15 * k * speed, 2, False, 20)
 
         '''cutaneous inputs'''
-        cut_stdp = cut_recovery_stdp(w_Ia)
+        # connect with the plantar weight (k = 0.017) so the random wiring does not depend on k
+        # (connectcells seeds it with the weight), then scale to this mode and injury
+        w_cut_plantar = 0.0035 * 0.017 * speed
+        cut_factor = k / 0.017 * scales["cut"]
+        w_cut = w_cut_plantar * cut_factor
+        cut_stdp = cut_recovery_stdp(w_Ia, w_cut) or dict(
+            stdp_wmax=w_cut * STDP_MAX_WEIGHT_FACTOR, stdp_hebbwt=w_cut * STDP_HEBB_STEP_FRACTION)
         for layer in range(CV_number):
-            connectcells(self, self.dict_CV_pool[layer], self.dict_RG_E[layer], 0.0035 * k * speed, 3,
-                         stdptype=stdp_CV, **cut_stdp)
+            self._scaled(cut_factor, lambda: connectcells(
+                self, self.dict_CV_pool[layer], self.dict_RG_E[layer], w_cut_plantar, 3,
+                stdptype=stdp_CV, **cut_stdp))
 
         '''Ia2motor'''
-        connectcells(self, self.Ia_aff_E, self.mns_E, 1.55, 2)
+        self._scaled(scales["ia_mn"], lambda: connectcells(self, self.Ia_aff_E, self.mns_E, 1.55, 2))
         connectcells(self, self.Ia_aff_F, self.mns_F, 1.55, 2)
 
         for layer in range(CV_number):
@@ -338,6 +371,13 @@ class LEG:
 
         self.gener_Iagids.append(gid)
         return gid
+
+    def _scaled(self, factor, connect):
+        '''Run connect() and scale the weights of the NetCons it created.'''
+        n_before = len(self.netcons)
+        connect()
+        for nc in self.netcons[n_before:]:
+            nc.weight[0] *= factor
 
     def connectinsidenucleus(self, nucleus, weight=None):
         w = weight if weight is not None else 0.25

@@ -110,8 +110,8 @@ if __name__ == '__main__':
     print(f"   Total simulation time: {time_sim} ms")
     logging.info("=== MAIN EXECUTION START ===")
     logging.info(f"Rank {rank}/{nhost}, N={N}, Step number: {step_number}, speed={speed}, versions={versions}")
-    logging.info(f"Mode: speed={speed}, BWS={BWS}, INJURY={INJURY}, output={file_name}")
-    print(f"   Mode: speed={speed}, BWS={BWS}, INJURY={INJURY}, output={file_name}")
+    logging.info(f"Mode: speed={speed}, k={k}, BWS={BWS}, INJURY={INJURY}, CUT_RESIDUAL={CUT_RESIDUAL}, output={file_name}")
+    print(f"   Mode: speed={speed}, k={k}, BWS={BWS}, INJURY={INJURY}, CUT_RESIDUAL={CUT_RESIDUAL}, output={file_name}")
 
     if rank == 0:
         for directory in (file_name, STDP_DIR_LEFT, STDP_DIR_RIGHT):
