@@ -79,7 +79,7 @@ step_number = 6 #quick test #50 # 70 max that works  # 100 weights are not recor
 one_step_time = int((6 * speed + CV_0_len) / (int(1000 / bs_fr))) * (int(1000 / bs_fr))
 time_sim = (one_step_time * step_number + 30)*2
 
-IA_MIN_RATE_HZ = 40  # Ia generator never drops below its baseline rate inside its phase
+IB_MIN_RATE_HZ = 40  # Ib generator never drops below its baseline rate inside its phase
 STDP_MAX_WEIGHT_FACTOR = 2.0  # prevent CV->RG_E weights from dominating the rhythm
 STDP_HEBB_STEP_FRACTION = 0.01  # at most 1% of the initial weight per LTP event
 
@@ -89,7 +89,7 @@ speed = int(os.environ.get("CPG_SPEED", speed))
 # CUT strength per stepping mode, as in rat_cpg_stdp.py: plantar 0.017, TOE 0.01, QUAD 0.003, AIR 0.001
 k = float(os.environ.get("CPG_K", k))
 BWS = float(os.environ.get("CPG_BWS", 0.0))  # body weight support: scales the CUT afferent rate by (1 - BWS)
-# injury of the extensor side, see leg.injury_scales(): fraction of the Ia_aff_E drive (to RG_E and
+# injury of the extensor side, see leg.injury_scales(): fraction of the Ib_aff_E drive (to RG_E and
 # directly to mns_E) removed at t=0; at INJURY = 1 CUT -> RG_E is CUT_RESIDUAL of the plantar weight
 INJURY = float(os.environ.get("CPG_INJURY", 0.0))
 CUT_RESIDUAL = float(os.environ.get("CPG_CUT_RESIDUAL", 0.015))  # calibrate_injury.py: visible in all modes
@@ -104,7 +104,13 @@ if "CPG_OUT" in os.environ:
 elif (speed, k, BWS, INJURY) != (100, 0.017, 0.0, 0.0):
     file_name = f"res_sp{speed}_k{k:g}_bws{BWS:g}_inj{INJURY:g}"
 
-STDP_RECOVERY_WMAX_FACTOR = 1.0  # wmax = factor * INJURY * w_Ia
+'''Ia (muscle spindle) pathway, see leg.add_ia_pathway(). The spindles fire and are recorded,
+but every synapse they make is scaled by IA_WEIGHT_SCALE: 0 while the muscle length is fixed
+(a spindle at constant length carries no information), 1 once the length becomes dynamic.'''
+IA_WEIGHT_SCALE = float(os.environ.get("CPG_IA_SCALE", 0.0))
+IA_BASE_RATE_HZ = 50.0  # tonic Ia rate at resting length and zero stretch velocity
+
+STDP_RECOVERY_WMAX_FACTOR = 1.0  # wmax = factor * INJURY * w_Ib
 STDP_RECOVERY_HEBB_FRACTION = 0.02  # LTP step, fraction of the post-injury CUT weight per event
 STDP_RECOVERY_LTD_RATIO = 1.0  # LTD step at w = wmax relative to the LTP step
 

@@ -116,8 +116,8 @@ class CPG:
         # self.CV = sum(self.CV, [])
         #
         # '''sensory and muscle afferents and brainstem and V3F'''
-        self.Ia_aff_E = self.addpool(self.nAff, "Ia_aff_E", "aff")
-        self.Ia_aff_F = self.addpool(self.nAff, "Ia_aff_F", "aff")
+        self.Ib_aff_E = self.addpool(self.nAff, "Ib_aff_E", "aff")
+        self.Ib_aff_F = self.addpool(self.nAff, "Ib_aff_F", "aff")
         # self.BS_aff_E = self.addpool(self.nAff, "BS_aff_E", "aff")
         # self.BS_aff_F = self.addpool(self.nAff, "BS_aff_F", "aff")
         # self.V3F = self.addpool(self.nAff, "V3F", "int")
@@ -131,9 +131,9 @@ class CPG:
         self.muscle_F = self.addpool(self.nMn, "muscle_F", "muscle")
         #
         '''reflex arc'''
-        # self.Ia_E = self.addpool(self.nInt, "Ia_E", "int")
+        # self.Ib_E = self.addpool(self.nInt, "Ib_E", "int")
         self.R_E = self.addpool(self.nInt, "R_E", "int")  # Renshaw cells
-        # self.Ia_F = self.addpool(self.nInt, "Ia_F", "bursting")
+        # self.Ib_F = self.addpool(self.nInt, "Ib_F", "bursting")
         self.R_F = self.addpool(self.nInt, "R_F", "bursting")  # Renshaw cells
 
         logging.info("done addpool")
@@ -180,22 +180,22 @@ class CPG:
         #
         # # '''muscle afferents generators'''
         #
-        self.E_ia_gids, self.F_ia_gids = self.add_ia_geners(self.muscle_E, self.muscle_F)
+        self.E_ib_gids, self.F_ib_gids = self.add_ib_geners(self.muscle_E, self.muscle_F)
         # ''' BS '''
-        for E_ia_gid in self.E_ia_gids:
-            self.genconnect(E_ia_gid, self.Ia_aff_E, 0.05, 3)
+        for E_ib_gid in self.E_ib_gids:
+            self.genconnect(E_ib_gid, self.Ib_aff_E, 0.05, 3)
         #
-        for F_ia_gid in self.F_ia_gids:
-            self.genconnect(F_ia_gid, self.Ia_aff_F, 0.05, 3)
-        # self.Iagener_E = self.addIagener(self.muscle_E, self.muscle_F, 15, weight=20)
-        # self.Iagener_F = self.addIagener(self.muscle_F, self.muscle_E, one_step_time + 15, weight=30)
+        for F_ib_gid in self.F_ib_gids:
+            self.genconnect(F_ib_gid, self.Ib_aff_F, 0.05, 3)
+        # self.Ibgener_E = self.addIbgener(self.muscle_E, self.muscle_F, 15, weight=20)
+        # self.Ibgener_F = self.addIbgener(self.muscle_F, self.muscle_E, one_step_time + 15, weight=30)
         #
         # '''Create connectcells'''
-        # # self.genconnect(self.Iagener_E, self.Ia_aff_E, 0.5, 1, False, 20)
-        # # self.genconnect(self.Iagener_F, self.Ia_aff_F, 0.5, 1, False, 30)
+        # # self.genconnect(self.Ibgener_E, self.Ib_aff_E, 0.5, 1, False, 20)
+        # # self.genconnect(self.Ibgener_F, self.Ib_aff_F, 0.5, 1, False, 30)
         #
-        # self.connectcells(self.muscle_E, self.Ia_aff_E, 3.5, 1, 10, False)
-        # self.connectcells(self.muscle_F, self.Ia_aff_F, 3.5, 1, 10, False)
+        # self.connectcells(self.muscle_E, self.Ib_aff_E, 3.5, 1, 10, False)
+        # self.connectcells(self.muscle_F, self.Ib_aff_F, 3.5, 1, 10, False)
         #
         # '''cutaneous inputs'''
         # cfr = 200
@@ -229,23 +229,23 @@ class CPG:
         # #     self.genconnect(self.dict_C[layer], self.dict_CV_1[layer], 3 * k * speed, 2)  # 0.15
         # #     self.connectcells(self.dict_CV_1[layer], self.dict_RG_E[layer], 2 * k * speed, 3)  # 0.0035
         #
-        # # '''Ia2motor'''
-        # self.connectcells(self.Ia_aff_E, self.mns_E, 1, 2)
-        # self.connectcells(self.Ia_aff_F, self.mns_F, 1, 2)
+        # # '''Ib2motor'''
+        # self.connectcells(self.Ib_aff_E, self.mns_E, 1, 2)
+        # self.connectcells(self.Ib_aff_F, self.mns_F, 1, 2)
         # #
         # for layer in range(CV_number):
         #     '''STDP synapse'''
-        #     self.connectcells(self.Ia_aff_E, self.dict_RG_E[layer], weight=1, delay=3, stdptype=True)
-        #     self.connectcells(self.Ia_aff_F, self.dict_RG_F[layer], weight=1, delay=3, stdptype=True)
+        #     self.connectcells(self.Ib_aff_E, self.dict_RG_E[layer], weight=1, delay=3, stdptype=True)
+        #     self.connectcells(self.Ib_aff_F, self.dict_RG_F[layer], weight=1, delay=3, stdptype=True)
         #
         # #     # self.connectcells(self.dict_RG_F[layer], self.V3F, 1.5, 3)
         # # #
-        '''Ia2RG, RG2Motor'''
+        '''Ib2RG, RG2Motor'''
         self.connectcells(self.InE, self.RG_F, 0.009, 1, inhtype=True)
         self.connectcells(self.InF, self.RG_E, 0.009, 1, inhtype=True)
 
-        # self.connectcells(self.Ia_aff_E, self.Ia_E, 1, 1, inhtype=False)
-        # self.connectcells(self.Ia_aff_F, self.Ia_F, 1, 1, inhtype=False)
+        # self.connectcells(self.Ib_aff_E, self.Ib_E, 1, 1, inhtype=False)
+        # self.connectcells(self.Ib_aff_F, self.Ib_F, 1, 1, inhtype=False)
 
         self.connectcells(self.mns_E, self.R_E, 0.005, 1, inhtype=False)
         self.connectcells(self.mns_F, self.R_F, 0.005, 1, inhtype=False)
@@ -253,11 +253,11 @@ class CPG:
         self.connectcells(self.R_E, self.mns_E, 0.009, 1, inhtype=True)
         self.connectcells(self.R_F, self.mns_F, 0.009, 1, inhtype=True)
 
-        # self.connectcells(self.R_E, self.Ia_E, 0.7, 1, inhtype=True)
-        # self.connectcells(self.R_F, self.Ia_F, 0.7, 1, inhtype=True)
+        # self.connectcells(self.R_E, self.Ib_E, 0.7, 1, inhtype=True)
+        # self.connectcells(self.R_F, self.Ib_F, 0.7, 1, inhtype=True)
 
-        # self.connectcells(self.Ia_E, self.mns_F, 0.8, 1, inhtype=True)
-        # self.connectcells(self.Ia_F, self.mns_E, 0.8, 1, inhtype=True)
+        # self.connectcells(self.Ib_E, self.mns_F, 0.8, 1, inhtype=True)
+        # self.connectcells(self.Ib_F, self.mns_E, 0.8, 1, inhtype=True)
 
         logging.info("done connectcells")
 
@@ -418,9 +418,9 @@ class CPG:
 
         return x2
 
-    def addIagener(self, mn: list, mn2: list, start: int, weight: float = 1.0) -> int:
+    def addIbgener(self, mn: list, mn2: list, start: int, weight: float = 1.0) -> int:
         """
-        Creates an Ia generator and returns its gid.
+        Creates an Ib generator and returns its gid.
 
         Parameters
         ----------
@@ -443,8 +443,8 @@ class CPG:
         moto = pc.gid2cell(random.choice(mn))
         moto2 = pc.gid2cell(random.choice(mn2))
 
-        # Create the Ia generator with an initial value of 0.5.
-        stim = h.IaGenerator(0.5)
+        # Create the Ib generator with an initial value of 0.5.
+        stim = h.IbGenerator(0.5)
         stim.start = start
 
         # Set generator parameters:
@@ -541,13 +541,13 @@ class CPG:
             E_bs_gids.append(self.addgener(int(one_step_time * 2 * step) + 20, freq, False, 1, weight_F))
         return E_bs_gids, F_bs_gids
 
-    def add_ia_geners(self, mus_E, mus_F):
-        E_ia_gids = []
-        F_ia_gids = []
+    def add_ib_geners(self, mus_E, mus_F):
+        E_ib_gids = []
+        F_ib_gids = []
         for step in range(step_number):
-            E_ia_gids.append(self.addIagener(mus_E, mus_F, 15 + one_step_time * 2 * step, weight=1))
-            F_ia_gids.append(self.addIagener(mus_F, mus_E, 15 + one_step_time * (1 + 2 * step), weight=2))
-        return E_ia_gids, F_ia_gids
+            E_ib_gids.append(self.addIbgener(mus_E, mus_F, 15 + one_step_time * 2 * step, weight=1))
+            F_ib_gids.append(self.addIbgener(mus_F, mus_E, 15 + one_step_time * (1 + 2 * step), weight=2))
+        return E_ib_gids, F_ib_gids
 
 
 # def draw(weight_changes, time_t):

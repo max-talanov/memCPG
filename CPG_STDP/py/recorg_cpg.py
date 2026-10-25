@@ -247,12 +247,12 @@ def force_record(pool):
 
 def velocity_record(gids, attr='_ref_vel'):
     """
-    Records velocity-related variable (vel or v0) from IaGenerator instances
+    Records velocity-related variable (vel or v0) from IbGenerator instances
 
     Parameters
     ----------
     gids : list of int
-        gids of IaGenerator processes
+        gids of IbGenerator processes
     attr : str
         which attribute to record ('_ref_vel' or '_ref_v0')
 

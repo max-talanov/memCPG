@@ -36,7 +36,7 @@ scene_vector_[2] = save_window_
 {save_window_.view(0, -1, 1000, 2, 817, 181, 300.48, 200.32)}
 graphList[1].append(save_window_)
 save_window_.save_name("graphList[1].")
-save_window_.addvar("IaGenerator[0].mean", 1, 1, 0.8, 0.9, 2)
+save_window_.addvar("IbGenerator[0].mean", 1, 1, 0.8, 0.9, 2)
 }
 {
 save_window_ = new Graph(0)
@@ -45,7 +45,7 @@ scene_vector_[3] = save_window_
 {save_window_.view(0, -1, 1000, 2, 654, 447, 300.48, 200.32)}
 graphList[1].append(save_window_)
 save_window_.save_name("graphList[1].")
-save_window_.addvar("IaGenerator[0].fhill", 1, 1, 0.8, 0.9, 2)
+save_window_.addvar("IbGenerator[0].fhill", 1, 1, 0.8, 0.9, 2)
 }
 {
 save_window_ = new Graph(0)
@@ -54,7 +54,7 @@ scene_vector_[4] = save_window_
 {save_window_.view(0, -1, 1000, 2, 413, 78, 300.48, 200.32)}
 graphList[1].append(save_window_)
 save_window_.save_name("graphList[1].")
-save_window_.addvar("IaGenerator[0].vel", 1, 1, 0.8, 0.9, 2)
+save_window_.addvar("IbGenerator[0].vel", 1, 1, 0.8, 0.9, 2)
 }
 objectvar scene_vector_[1]
 {doNotify()}

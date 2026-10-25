@@ -134,6 +134,9 @@ if __name__ == '__main__':
 
             bs_cmd = create_connect_bs_command(LEG_L, LEG_R, mode=WALK)
             add_external_connections(LEG_L, LEG_R, mode=WALK)
+
+            LEG_L.add_ia_pathway()
+            LEG_R.add_ia_pathway()
             #create_connect_bs(LEG_R, LEG_L)
             #add_external_connections(LEG_R, LEG_L)
             print(f"   ✅ CPG network created successfully")
@@ -181,10 +184,10 @@ if __name__ == '__main__':
                 muscle_am_recorders_r.append(spike_record(group[k_nrns], location='am'))
             print(f"      ✅ {len(musclerecorders_l)} muscle recorder groups")
 
-            # print(f"      Setting up Ia generator recorders...")
-            # vel_vecs_recorders = velocity_record(cpg_ex.gener_Iagids, attr='_ref_vel')
-            # v0_vecs_recorders = velocity_record(cpg_ex.gener_Iagids, attr='_ref_v0')
-            # print(f"      ✅ {len(vel_vecs_recorders)} Ia generator recorders")
+            # print(f"      Setting up Ib generator recorders...")
+            # vel_vecs_recorders = velocity_record(cpg_ex.gener_Ibgids, attr='_ref_vel')
+            # v0_vecs_recorders = velocity_record(cpg_ex.gener_Ibgids, attr='_ref_v0')
+            # print(f"      ✅ {len(vel_vecs_recorders)} Ib generator recorders")
 
             print(f"   ✅ All recorders set up successfully")
             logging.info("Added recorders")
@@ -260,8 +263,8 @@ if __name__ == '__main__':
             for group, recorder in zip(LEG_R.musclegroups, muscle_am_recorders_r):
                 spikeout(group[k_nrns], 'am_{}'.format(group[k_name]), i, recorder, "right")
 
-            # spikeout(cpg_ex.gener_Iagids, 'vel', i, vel_vecs_recorders)
-            # spikeout(cpg_ex.gener_Iagids, 'v0', i, v0_vecs_recorders)
+            # spikeout(cpg_ex.gener_Ibgids, 'vel', i, vel_vecs_recorders)
+            # spikeout(cpg_ex.gener_Ibgids, 'v0', i, v0_vecs_recorders)
             # print(f"      ✅ Spike data saved")
 
             del (motorecorders_mem_l, motorecorders_mem_r,

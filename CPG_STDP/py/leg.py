@@ -7,14 +7,14 @@ CUT_REFERENCE_WEIGHT = 0.0035 * 0.017 * 100  # CUT -> RG_E of plantar walking at
 
 def injury_scales(injury=None, cut_residual=None):
     '''Weight factors of the extensor pathways after injury (all 1 for the intact network).
-    Every input below fires RG_E / mns_E on its own when left at full strength: the Ia_aff_E
+    Every input below fires RG_E / mns_E on its own when left at full strength: the Ib_aff_E
     and CUT pools fire in synchronous volleys, which drive RG_E even at 1% of their weight.'''
     injury = INJURY if injury is None else injury
     cut_residual = CUT_RESIDUAL if cut_residual is None else cut_residual
     w_cut = 0.0035 * k * speed
     return {
-        "ia_rg": 1 - injury,  # Ia_aff_E -> RG_E
-        "ia_mn": 1 - injury,  # Ia_aff_E -> mns_E: monosynaptic path that bypasses RG_E
+        "ib_rg": 1 - injury,  # Ib_aff_E -> RG_E
+        "ib_mn": 1 - injury,  # Ib_aff_E -> mns_E: monosynaptic path that bypasses RG_E
         # CUT -> RG_E: after a complete injury the same weak synapse (cut_residual of the plantar
         # weight, near the RG_E firing threshold) in every mode; the modes then differ in how
         # many CUT volleys arrive (speed, BWS)
@@ -22,7 +22,7 @@ def injury_scales(injury=None, cut_residual=None):
     }
 
 
-def cut_recovery_stdp(w_ia, w_cut, injury=None, hebb_fraction=None, ltd_ratio=None):
+def cut_recovery_stdp(w_ib, w_cut, injury=None, hebb_fraction=None, ltd_ratio=None):
     '''STDP parameters of CUT -> RG_E after injury ({} for the intact network).
     w_cut is the CUT weight right after the injury; LTP steps are a fraction of it, so a
     few pairings cannot undo the injury at once.'''
@@ -31,8 +31,7 @@ def cut_recovery_stdp(w_ia, w_cut, injury=None, hebb_fraction=None, ltd_ratio=No
     ltd_ratio = STDP_RECOVERY_LTD_RATIO if ltd_ratio is None else ltd_ratio
     if injury <= 0:
         return {}
-    # CUT -> RG_E may grow up to the removed Ia weight
-    cut_wmax = STDP_RECOVERY_WMAX_FACTOR * injury * w_ia
+    cut_wmax = STDP_RECOVERY_WMAX_FACTOR * injury * w_ib
     hebbwt = hebb_fraction * w_cut
     return dict(
         stdp_wmax=cut_wmax,
@@ -64,6 +63,7 @@ class LEG:
         self.motogroups = []
         self.musclegroups = []
         self.gener_gids = []
+        self.gener_Ibgids = []
         self.gener_Iagids = []
         self.gen_spike_vectors = []
         # self.n_gid = get_gid()
@@ -123,8 +123,8 @@ class LEG:
         self.V3F = sum(self.V3F, [])
 
         '''sensory and muscle afferents and brainstem and V3F'''
-        self.Ia_aff_E = addpool(self, self.nAff, "Ia_aff_E", "aff")
-        self.Ia_aff_F = addpool(self, self.nAff, "Ia_aff_F", "aff")
+        self.Ib_aff_E = addpool(self, self.nAff, "Ib_aff_E", "aff")
+        self.Ib_aff_F = addpool(self, self.nAff, "Ib_aff_F", "aff")
         # self.BS_aff_E = addpool(self, self.nAff, "BS_aff_E", "aff")
         # self.BS_aff_F = addpool(self, self.nAff, "BS_aff_F", "aff")
         
@@ -137,6 +137,9 @@ class LEG:
         self.mns_F = addpool(self, self.nMn, "mns_F", "moto")
 
         # '''reflex arc'''
+        # Ia inhibitory interneurons: reciprocal inhibition of the antagonist motoneurons.
+        # Their Ia afferent input is added in add_ia_pathway(); until it is switched on they
+        # are driven by Ib_aff (see the IB_TO_IA_INT legacy connection below).
         self.Ia_E = addpool(self, self.nInt, "Ia_E", "int")
         self.R_E = addpool(self, self.nInt, "R_E", "int")  # Renshaw cells
         self.Ia_F = addpool(self, self.nInt, "Ia_F", "int")
@@ -178,36 +181,36 @@ class LEG:
         #connectcells(self, self.BS_aff_F, self.RG_F, 0.1, 3, stdptype=False)
         #connectcells(self, self.BS_aff_E, self.RG_E, 0.1, 3, stdptype=False)
 
-        '''Ia inputs'''
-        self.E_ia_gids, self.F_ia_gids = self.add_ia_geners(leg_l)
+        '''Ib inputs'''
+        self.E_ib_gids, self.F_ib_gids = self.add_ib_geners(leg_l)
 
-        for E_ia_gids in self.E_ia_gids:
-            genconnect(self, E_ia_gids, self.Ia_aff_E, 0.01, 1, inhtype=False, N=20)
+        for E_ib_gids in self.E_ib_gids:
+            genconnect(self, E_ib_gids, self.Ib_aff_E, 0.01, 1, inhtype=False, N=20)
 
-        for F_ia_gids in self.F_ia_gids:
-            genconnect(self, F_ia_gids, self.Ia_aff_F, 0.01, 1, inhtype=False, N=30)
+        for F_ib_gids in self.F_ib_gids:
+            genconnect(self, F_ib_gids, self.Ib_aff_F, 0.01, 1, inhtype=False, N=30)
 
         # # '''muscle afferents generators'''
-        # self.Iagener_E = self.addIagener(self.muscle_E, self.muscle_F, 10, weight=3)
-        # self.Iagener_F = self.addIagener(self.muscle_F, self.muscle_E, one_step_time, weight=3)
+        # self.Ibgener_E = self.addIbgener(self.muscle_E, self.muscle_F, 10, weight=3)
+        # self.Ibgener_F = self.addIbgener(self.muscle_F, self.muscle_E, one_step_time, weight=3)
         #
         # # # '''Create connectcells'''
-        # self.genconnect(self.Iagener_E, self.Ia_aff_E, 5.5, 1, False, 20)
-        # self.genconnect(self.Iagener_F, self.Ia_aff_F, 5.5, 1, False, 30)
+        # self.genconnect(self.Ibgener_E, self.Ib_aff_E, 5.5, 1, False, 20)
+        # self.genconnect(self.Ibgener_F, self.Ib_aff_F, 5.5, 1, False, 30)
 
-        # connectcells(self, self.muscle_E, self.Ia_aff_E, 3.5, 1, 10, False)
-        # connectcells(self, self.muscle_F, self.Ia_aff_F, 3.5, 1, 10, False)
+        # connectcells(self, self.muscle_E, self.Ib_aff_E, 3.5, 1, 10, False)
+        # connectcells(self, self.muscle_F, self.Ib_aff_F, 3.5, 1, 10, False)
 
-        w_Ia =  0.3 #0.3 #1.3
-        stdp_Ia = False
+        w_Ib =  0.3 #0.3 #1.3
+        stdp_Ib = False
         stdp_CV = True
 
         # injury: the extensor pathways keep their synapses and delays (same as the intact
         # network), only the weights are scaled, see injury_scales()
         scales = injury_scales()
-        self._scaled(scales["ia_rg"], lambda: connectcells(
-            self, self.Ia_aff_E, self.RG_E, weight=w_Ia, delay=3, stdptype=stdp_Ia))
-        connectcells(self, self.Ia_aff_F, self.RG_F, weight=w_Ia, delay=3, stdptype=stdp_Ia)
+        self._scaled(scales["ib_rg"], lambda: connectcells(
+            self, self.Ib_aff_E, self.RG_E, weight=w_Ib, delay=3, stdptype=stdp_Ib))
+        connectcells(self, self.Ib_aff_F, self.RG_F, weight=w_Ib, delay=3, stdptype=stdp_Ib)
 
         for layer in range(CV_number):
             for gen_gid in self.dict_CV_gener[layer]:
@@ -219,16 +222,16 @@ class LEG:
         w_cut_plantar = 0.0035 * 0.017 * speed
         cut_factor = k / 0.017 * scales["cut"]
         w_cut = w_cut_plantar * cut_factor
-        cut_stdp = cut_recovery_stdp(w_Ia, w_cut) or dict(
+        cut_stdp = cut_recovery_stdp(w_Ib, w_cut) or dict(
             stdp_wmax=w_cut * STDP_MAX_WEIGHT_FACTOR, stdp_hebbwt=w_cut * STDP_HEBB_STEP_FRACTION)
         for layer in range(CV_number):
             self._scaled(cut_factor, lambda: connectcells(
                 self, self.dict_CV_pool[layer], self.dict_RG_E[layer], w_cut_plantar, 3,
                 stdptype=stdp_CV, **cut_stdp))
 
-        '''Ia2motor'''
-        self._scaled(scales["ia_mn"], lambda: connectcells(self, self.Ia_aff_E, self.mns_E, 1.55, 2))
-        connectcells(self, self.Ia_aff_F, self.mns_F, 1.55, 2)
+        '''Ib2motor'''
+        self._scaled(scales["ib_mn"], lambda: connectcells(self, self.Ib_aff_E, self.mns_E, 1.55, 2))
+        connectcells(self, self.Ib_aff_F, self.mns_F, 1.55, 2)
 
         for layer in range(CV_number):
             '''Internal to RG topology'''
@@ -247,23 +250,26 @@ class LEG:
         connectcells(self, self.mns_E, self.muscle_E, 10, 2, inhtype=False, N=45, sect="muscle")
         connectcells(self, self.mns_F, self.muscle_F, 10, 2, inhtype=False, N=45, sect="muscle")
 
-        '''Ia2RG, RG2Motor'''
+        '''Ib2RG, RG2Motor'''
         connectcells(self, self.InE, self.RG_F, 0.8, 1, inhtype=True)
         connectcells(self, self.InF, self.RG_E, 0.8, 1, inhtype=True)
 
         connectcells(self, self.InE, self.mns_F, 0.8, 1, inhtype=True)
         connectcells(self, self.InF, self.mns_E, 0.4, 1, inhtype=True)
 
-        connectcells(self, self.InE, self.Ia_aff_F, 1.2, 1, inhtype=True)
-        connectcells(self, self.InF, self.Ia_aff_E, 0.5, 1, inhtype=True)
+        connectcells(self, self.InE, self.Ib_aff_F, 1.2, 1, inhtype=True)
+        connectcells(self, self.InF, self.Ib_aff_E, 0.5, 1, inhtype=True)
 
         connectcells(self, self.InE, self.InF, 0.04, 1, inhtype=True)
         connectcells(self, self.InF, self.InE, 0.04, 1, inhtype=True)
 
         connectcells(self, self.In1, self.RG_F, 0.5, 1, inhtype=True)
 
-        connectcells(self, self.Ia_aff_E, self.Ia_E, 0.08, 1, inhtype=False)
-        connectcells(self, self.Ia_aff_F, self.Ia_F, 0.08, 1, inhtype=False)
+        # legacy drive of the Ia interneurons: physiologically they are excited by Ia, not by
+        # Ib, but Ia carries no information while the muscle length is fixed. Drop these two
+        # once add_ia_pathway() runs with IA_WEIGHT_SCALE = 1.
+        connectcells(self, self.Ib_aff_E, self.Ia_E, 0.08, 1, inhtype=False)
+        connectcells(self, self.Ib_aff_F, self.Ia_F, 0.08, 1, inhtype=False)
 
         connectcells(self, self.mns_E, self.R_E, 0.015, 1, inhtype=False)
         connectcells(self, self.mns_F, self.R_F, 0.015, 1, inhtype=False)
@@ -286,10 +292,11 @@ class LEG:
         #connectcells(self, self.RG_F, self.V2a, 0.75, 3)
         #connectcells(self, self.RG_F, self.V0d, 0.75, 3)
         connectcells(self, self.V2a, self.V0v, 1.2, 3)
+        # add_ia_pathway() is deliberately NOT called here, see its docstring
 
-    def addIagener(self, mn: list, mn2: list, start, weight=1.0):
+    def addIbgener(self, mn: list, mn2: list, start, weight=1.0):
         '''
-        Creates self.Ia generators and returns generator gid
+        Creates self.Ib generators and returns generator gid
         Parameters
         ----------
         mn: list
@@ -307,8 +314,10 @@ class LEG:
         '''
         pair_count = min(len(mn), len(mn2))
         if pair_count == 0:
-            raise ValueError("IaGenerator requires non-empty agonist and antagonist muscle pools")
+            raise ValueError("IbGenerator requires non-empty agonist and antagonist muscle pools")
 
+        # the seed string keeps its old "Ia" spelling: it picks the muscle-fibre pair, so changing
+        # it would change the network
         rng = random.Random(f"{self.name}:Ia:{start}")
         pair_index = rng.randrange(pair_count)
         muscle_gid = mn[pair_index]
@@ -319,7 +328,7 @@ class LEG:
         if rank == owner_rank:
             if not pc.gid_exists(muscle_gid) or not pc.gid_exists(antagonist_gid):
                 raise RuntimeError(
-                    f"IaGenerator gid={gid}: paired muscles {muscle_gid}/{antagonist_gid} "
+                    f"IbGenerator gid={gid}: paired muscles {muscle_gid}/{antagonist_gid} "
                     f"are not both local on expected rank {owner_rank}"
                 )
 
@@ -327,22 +336,22 @@ class LEG:
             antagonist_cell = pc.gid2cell(antagonist_gid)
             if not hasattr(muscle_cell, "muscle_unit") or not hasattr(antagonist_cell, "muscle_unit"):
                 raise TypeError(
-                    f"IaGenerator gid={gid}: selected GIDs are not muscle cells"
+                    f"IbGenerator gid={gid}: selected GIDs are not muscle cells"
                 )
 
             interval = int(1000 / bs_fr)
             number = int(one_step_time / interval) - 2
-            stim = h.IaGenerator()
+            stim = h.IbGenerator()
             stim.start = start
             stim.interval = interval
             stim.number = number
             try:
                 stim.dur = interval * (number - 1)
-                stim.vmin = IA_MIN_RATE_HZ
+                stim.vmin = IB_MIN_RATE_HZ
             except LookupError as err:
                 raise RuntimeError(
-                    "IaGenerator has no 'dur'/'vmin' parameters: recompile the "
-                    "mechanisms (nrnivmodl mod_files) after updating iagen.mod"
+                    "IbGenerator has no 'dur'/'vmin' parameters: recompile the "
+                    "mechanisms (nrnivmodl mod_files) after updating ibgen.mod"
                 ) from err
 
             h.setpointer(
@@ -363,9 +372,86 @@ class LEG:
             self.netcons.append(ncstim)
             self.gen_spike_vectors.append((gid, spike_times))
             logging.info(
-                "IaGenerator created: gid=%s rank=%s pair_index=%s muscles=%s/%s",
+                "IbGenerator created: gid=%s rank=%s pair_index=%s muscles=%s/%s",
                 gid, owner_rank, pair_index, muscle_gid, antagonist_gid,
             )
+        else:
+            pc.set_gid2node(gid, owner_rank)
+
+        self.gener_Ibgids.append(gid)
+        return gid
+
+    def add_ia_pathway(self):
+        logging.info("add_ia_pathway: %s | IA_WEIGHT_SCALE=%s", self.name, IA_WEIGHT_SCALE)
+
+        '''Ia afferents (muscle spindles) and Ib inhibitory interneurons'''
+        self.Ia_aff_E = addpool(self, self.nAff, "Ia_aff_E", "aff")
+        self.Ia_aff_F = addpool(self, self.nAff, "Ia_aff_F", "aff")
+        self.Ib_E = addpool(self, self.nInt, "Ib_E", "int")
+        self.Ib_F = addpool(self, self.nInt, "Ib_F", "int")
+
+        '''spindle generators: one per muscle, tonic, their rate follows the muscle length'''
+        self.Ia_gid_E = self.addIagener(self.muscle_E, "E")
+        self.Ia_gid_F = self.addIagener(self.muscle_F, "F")
+        genconnect(self, self.Ia_gid_E, self.Ia_aff_E, 0.01, 1, inhtype=False, N=20,
+                   gen_name="Ia_spindle_E", target_name="Ia_aff_E")
+        genconnect(self, self.Ia_gid_F, self.Ia_aff_F, 0.01, 1, inhtype=False, N=30,
+                   gen_name="Ia_spindle_F", target_name="Ia_aff_F")
+
+        scale = IA_WEIGHT_SCALE
+        '''Ia2motor: monosynaptic stretch reflex onto the homonymous motoneurons'''
+        self._scaled(scale, lambda: connectcells(self, self.Ia_aff_E, self.mns_E, 1.55, 2))
+        self._scaled(scale, lambda: connectcells(self, self.Ia_aff_F, self.mns_F, 1.55, 2))
+
+        '''Ia2Ia-interneuron: reciprocal inhibition of the antagonist'''
+        self._scaled(scale, lambda: connectcells(self, self.Ia_aff_E, self.Ia_E, 0.08, 1))
+        self._scaled(scale, lambda: connectcells(self, self.Ia_aff_F, self.Ia_F, 0.08, 1))
+
+        '''Ia2RG'''
+        self._scaled(scale, lambda: connectcells(self, self.Ia_aff_E, self.RG_E, 0.3, 3))
+        self._scaled(scale, lambda: connectcells(self, self.Ia_aff_F, self.RG_F, 0.3, 3))
+
+        '''Ib2Ib-interneuron -> autogenic inhibition of its own motoneurons'''
+        self._scaled(scale, lambda: connectcells(self, self.Ib_aff_E, self.Ib_E, 0.08, 1))
+        self._scaled(scale, lambda: connectcells(self, self.Ib_aff_F, self.Ib_F, 0.08, 1))
+        self._scaled(scale, lambda: connectcells(self, self.Ib_E, self.mns_E, 0.08, 1, inhtype=True))
+        self._scaled(scale, lambda: connectcells(self, self.Ib_F, self.mns_F, 0.08, 1, inhtype=True))
+
+    def addIagener(self, muscles: list, label: str) -> int:
+        if not muscles:
+            raise ValueError("IaGenerator requires a non-empty muscle pool")
+
+        rng = random.Random(f"{self.name}:Ia_spindle:{label}")
+        index = rng.randrange(len(muscles))
+        muscle_gid = muscles[index]
+        owner_rank = index % nhost
+        gid = get_gid()
+
+        if rank == owner_rank:
+            if not pc.gid_exists(muscle_gid):
+                raise RuntimeError(
+                    f"IaGenerator gid={gid}: muscle {muscle_gid} is not local on rank {owner_rank}"
+                )
+            muscle_cell = pc.gid2cell(muscle_gid)
+            if not hasattr(muscle_cell, "muscle_unit"):
+                raise TypeError(f"IaGenerator gid={gid}: gid {muscle_gid} is not a muscle cell")
+
+            stim = h.IaGenerator()
+            stim.start = 5
+            stim.rate0 = IA_BASE_RATE_HZ
+            h.setpointer(muscle_cell.muscle_unit(0.5)._ref_xm_fHill, "xm", stim)
+
+            pc.set_gid2node(gid, owner_rank)
+            ncstim = h.NetCon(stim, None)
+            spike_times = h.Vector()
+            ncstim.record(spike_times)
+            pc.cell(gid, ncstim)
+
+            self.stims.append(stim)
+            self.netcons.append(ncstim)
+            self.gen_spike_vectors.append((gid, spike_times))
+            logging.info("IaGenerator created: gid=%s rank=%s muscle=%s (%s)",
+                         gid, owner_rank, muscle_gid, label)
         else:
             pc.set_gid2node(gid, owner_rank)
 
@@ -383,17 +469,17 @@ class LEG:
         w = weight if weight is not None else 0.25
         connectcells(self, nucleus, nucleus, pre_name="", post_name="", weight=w, delay=0.5)
 
-    def add_ia_geners(self, leg_l):
-        E_ia_gids = []
-        F_ia_gids = []
+    def add_ib_geners(self, leg_l):
+        E_ib_gids = []
+        F_ib_gids = []
         for step in range(step_number):
-            # E_ia_gids.append(self.addIagener(self.muscle_E, self.muscle_F, 10, weight=5))
-            # F_ia_gids.append(self.addIagener(self.muscle_F, self.muscle_E, one_step_time, weight=8))
+            # E_ib_gids.append(self.addIbgener(self.muscle_E, self.muscle_F, 10, weight=5))
+            # F_ib_gids.append(self.addIbgener(self.muscle_F, self.muscle_E, one_step_time, weight=8))
             start_time_e = 15 + one_step_time * 2 * step
             start_time_f = 15 + one_step_time * (1 + 2 * step)
             if leg_l:
                 start_time_e, start_time_f = start_time_f, start_time_e
-            E_ia_gids.append(self.addIagener(self.muscle_E, self.muscle_F, start_time_e, weight=0.1))
-            F_ia_gids.append(
-                self.addIagener(self.muscle_F, self.muscle_E, start_time_f, weight=0.1))
-        return E_ia_gids, F_ia_gids
+            E_ib_gids.append(self.addIbgener(self.muscle_E, self.muscle_F, start_time_e, weight=0.1))
+            F_ib_gids.append(
+                self.addIbgener(self.muscle_F, self.muscle_E, start_time_f, weight=0.1))
+        return E_ib_gids, F_ib_gids

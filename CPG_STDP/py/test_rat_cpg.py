@@ -102,26 +102,26 @@ class CPG:
 
         '''sensory and muscle afferents and brainstem and V3F'''
         ## self.sens_aff = self.addpool(nAff, "sens_aff", "aff")
-        self.Ia_aff_E = self.addpool(nAff, "Ia_aff_E", "aff")
-        self.Ia_aff_F = self.addpool(nAff, "Ia_aff_F", "aff")
+        self.Ib_aff_E = self.addpool(nAff, "Ib_aff_E", "aff")
+        self.Ib_aff_F = self.addpool(nAff, "Ib_aff_F", "aff")
 
         '''muscles'''
         self.muscle_E = self.addpool(nMN * 30, "muscle_E", "muscle")
         self.muscle_F = self.addpool(nMN * 20, "muscle_F", "muscle")
 
         '''reflex arc'''
-        self.Ia_E = self.addpool(nInt, "Ia_E", "int")
-        self.Ia_F = self.addpool(nInt, "Ia_F", "int")
-        # self.Iagener_E = []
-        # self.Iagener_F = []
+        self.Ib_E = self.addpool(nInt, "Ib_E", "int")
+        self.Ib_F = self.addpool(nInt, "Ib_F", "int")
+        # self.Ibgener_E = []
+        # self.Ibgener_F = []
 
         '''BS'''
         # periodic stimulation
         self.E_bs_gids, self.F_bs_gids = self.add_bs_geners(bs_fr, 10)
 
         '''muscle afferents generators'''
-        self.Iagener_E = self.addIagener(self.muscle_E, self.muscle_E, 10, weight=20)
-        self.Iagener_F = self.addIagener(self.muscle_F, self.muscle_F, speed * 6, weight=20)
+        self.Ibgener_E = self.addIbgener(self.muscle_E, self.muscle_E, 10, weight=20)
+        self.Ibgener_F = self.addIbgener(self.muscle_F, self.muscle_F, speed * 6, weight=20)
 
         '''cutaneous inputs'''
         cfr = 200
@@ -155,13 +155,13 @@ class CPG:
         ## connectcells(self.V0v, self.RG_F, 3.75, 3)
 
 
-        '''generators of Ia aff'''
+        '''generators of Ib aff'''
         ## TODO originally: 00005 and 0001
-        ## TODO fix Iagener
-        genconnect(self.Iagener_E, self.Ia_aff_E, 0.5, 1, False, 5)
-        genconnect(self.Iagener_F, self.Ia_aff_F, 1.5, 1, False, 15)
-        # genconnect(Iagener_E_1000, self.Ia_aff_E, 5.0, 1, False, 5)
-        # genconnect(Iagener_F_1000, self.Ia_aff_F, 5.0, 1, False, 15)
+        ## TODO fix Ibgener
+        genconnect(self.Ibgener_E, self.Ib_aff_E, 0.5, 1, False, 5)
+        genconnect(self.Ibgener_F, self.Ib_aff_F, 1.5, 1, False, 15)
+        # genconnect(Ibgener_E_1000, self.Ib_aff_E, 5.0, 1, False, 5)
+        # genconnect(Ibgener_F_1000, self.Ib_aff_F, 5.0, 1, False, 15)
 
 
         for layer in range(CV_number):
@@ -170,24 +170,24 @@ class CPG:
             connectinsidenucleus(self.dict_RG_E[layer])
 
 
-            '''Neg feedback RG -> Ia'''
+            '''Neg feedback RG -> Ib'''
             ## TODO why do we have this neg feedback ?
             if layer > 3:
-                connectcells(self.dict_RG_E[layer], self.Ia_aff_E, layer * 0.0002, 1, True)
+                connectcells(self.dict_RG_E[layer], self.Ib_aff_E, layer * 0.0002, 1, True)
             else:
-                '''RG2Ia'''
-                connectcells(self.dict_RG_E[layer], self.Ia_aff_E, 0.0001, 1, True)
+                '''RG2Ib'''
+                connectcells(self.dict_RG_E[layer], self.Ib_aff_E, 0.0001, 1, True)
 
-            '''Neg feedback loop RG->Ia'''
-            connectcells(self.dict_RG_F[layer], self.Ia_aff_F, 0.95, 1, True)
+            '''Neg feedback loop RG->Ib'''
+            connectcells(self.dict_RG_F[layer], self.Ib_aff_F, 0.95, 1, True)
 
         '''cutaneous inputs'''
         for layer in range(CV_number):
             connectcells(self.dict_C[layer], self.dict_CV_1[layer], 0.15 * k * speed, 2)
             connectcells(self.dict_CV_1[layer], self.dict_RG_E[layer], 0.00035 * k * speed, 3)
 
-        # connectcells(self.IP_F, self.Ia_aff_F, 0.0015, 2, True)
-        # connectcells(self.IP_E, self.Ia_aff_E, 0.0015, 2, True)
+        # connectcells(self.IP_F, self.Ib_aff_F, 0.0015, 2, True)
+        # connectcells(self.IP_E, self.Ib_aff_E, 0.0015, 2, True)
 
         '''Rhythm generators'''
         for layer in range(CV_number):
@@ -195,31 +195,31 @@ class CPG:
             ## TODO weight 0.0001
             connectcells(self.dict_RG_F[layer], self.InF, 0.001, 1)
 
-        '''Ia2RG, RG2Motor'''
+        '''Ib2RG, RG2Motor'''
         connectcells(self.InE, self.RG_F, 0.5, 1, True)
         '''STDP synapse'''
-        connectcells(self.Ia_aff_F, self.RG_F, 0.5, 1, stdptype=True)
+        connectcells(self.Ib_aff_F, self.RG_F, 0.5, 1, stdptype=True)
 
         # TODO check this too many reciprocal inh connections
-        connectcells(self.InE, self.Ia_aff_F, 1.2, 1, True)
+        connectcells(self.InE, self.Ib_aff_F, 1.2, 1, True)
 
         connectcells(self.InF, self.RG_E, 0.8, 1, True)
         '''STDP synapse'''
-        connectcells(self.Ia_aff_E, self.RG_E, 0.5, 1, stdptype=True)
+        connectcells(self.Ib_aff_E, self.RG_E, 0.5, 1, stdptype=True)
 
         # TODO check this too many reciprocal inh connections
         ## connectcells(self.InF, self.InE, 0.5, 1, True)
-        connectcells(self.InF, self.Ia_aff_E, 0.5, 1, True)
+        connectcells(self.InF, self.Ib_aff_E, 0.5, 1, True)
 
         '''reflex arc'''
-        connectcells(self.InE, self.Ia_E, 0.001, 1)
-        connectcells(self.Ia_aff_E, self.Ia_E, 0.008, 1)
+        connectcells(self.InE, self.Ib_E, 0.001, 1)
+        connectcells(self.Ib_aff_E, self.Ib_E, 0.008, 1)
 
-        connectcells(self.InF, self.Ia_F, 0.001, 1)
-        connectcells(self.Ia_aff_F, self.Ia_F, 0.008, 1)
+        connectcells(self.InF, self.Ib_F, 0.001, 1)
+        connectcells(self.Ib_aff_F, self.Ib_F, 0.008, 1)
 
-        connectcells(self.Ia_E, self.Ia_F, 0.08, 1, True)
-        connectcells(self.Ia_F, self.Ia_E, 0.08, 1, True)
+        connectcells(self.Ib_E, self.Ib_F, 0.08, 1, True)
+        connectcells(self.Ib_F, self.Ib_E, 0.08, 1, True)
         ## TODO check the inh connection
         connectcells(self.InE, self.InF, 0.04, 1, True)
         connectcells(self.InF, self.InE, 0.04, 1, True)
@@ -337,9 +337,9 @@ class CPG:
         pc.cell(gid, ncstim)
         return gid
 
-    def addIagener(self, mn, mn2, start, weight=1.0):
+    def addIbgener(self, mn, mn2, start, weight=1.0):
         '''
-        Creates self.Ia generators and returns generator gids
+        Creates self.Ib generators and returns generator gids
         Parameters
         ----------
         mn:
@@ -360,7 +360,7 @@ class CPG:
         gid = 0
         moto = pc.gid2cell(random.randint(mn[0], mn[-1]))
         moto2 = pc.gid2cell(random.randint(mn2[0], mn2[-1]))
-        stim = h.IaGenerator(0.5)
+        stim = h.IbGenerator(0.5)
         stim.start = start
         h.setpointer(moto.muscle_unit(0.5)._ref_F_fHill, 'fhill', stim)
         h.setpointer(moto2.muscle_unit(0.5)._ref_F_fHill, 'fhill2', stim)

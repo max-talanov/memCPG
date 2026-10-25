@@ -1,7 +1,7 @@
 #!/bin/bash
 cd "$(dirname "$0")" || exit 1
 
-INJURY=1  # complete loss of the extensor Ia drive, see leg.injury_scales()
+INJURY=1  # complete loss of the extensor Ib drive, see leg.injury_scales()
 
 submit() {  # name, mode variables
   sbatch --job-name="cpg_$1" --output="cpg_$1.slurmout" --error="cpg_$1.slurmerr" \

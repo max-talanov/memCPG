@@ -89,7 +89,7 @@ class CPG:
         self.motogroups = []
         self.musclegroups = []
         self.gener_gids = []
-        self.gener_Iagids = []
+        self.gener_Ibgids = []
         self.n_gid = 0
 
         self.RG_E = []  # Rhythm generators of extensors
@@ -140,8 +140,8 @@ class CPG:
         self.CV = sum(self.CV, [])
 
         '''sensory and muscle afferents and brainstem and V3F'''
-        self.Ia_aff_E = self.addpool(self.nAff, "Ia_aff_E", "aff")
-        self.Ia_aff_F = self.addpool(self.nAff, "Ia_aff_F", "aff")
+        self.Ib_aff_E = self.addpool(self.nAff, "Ib_aff_E", "aff")
+        self.Ib_aff_F = self.addpool(self.nAff, "Ib_aff_F", "aff")
         # self.BS_aff_E = self.addpool(self.nAff, "BS_aff_E", "aff")
         # self.BS_aff_F = self.addpool(self.nAff, "BS_aff_F", "aff")
         # self.V3F = self.addpool(self.nAff, "V3F", "int")
@@ -155,9 +155,9 @@ class CPG:
         self.muscle_F = self.addpool(self.nMn, "muscle_F", "muscle")
 
         # '''reflex arc'''
-        self.Ia_E = self.addpool(self.nInt, "Ia_E", "int")
+        self.Ib_E = self.addpool(self.nInt, "Ib_E", "int")
         self.R_E = self.addpool(self.nInt, "R_E", "int")  # Renshaw cells
-        self.Ia_F = self.addpool(self.nInt, "Ia_F", "int")
+        self.Ib_F = self.addpool(self.nInt, "Ib_F", "int")
         self.R_F = self.addpool(self.nInt, "R_F", "int")  # Renshaw cells
 
         '''BS'''
@@ -183,24 +183,24 @@ class CPG:
             for layer in range(CV_number):
                 self.genconnect(F_bs_gid, self.dict_RG_F[layer], 3.75, 1)
 
-        self.E_ia_gids, self.F_ia_gids = self.add_ia_geners()
+        self.E_ib_gids, self.F_ib_gids = self.add_ib_geners()
 
-        for E_ia_gids in self.E_ia_gids:
-            self.genconnect(E_ia_gids, self.Ia_aff_E, 0.01, 1, False, 20)
+        for E_ib_gids in self.E_ib_gids:
+            self.genconnect(E_ib_gids, self.Ib_aff_E, 0.01, 1, False, 20)
 
-        for F_ia_gids in self.F_ia_gids:
-            self.genconnect(F_ia_gids, self.Ia_aff_F, 0.01, 1, False, 30)
+        for F_ib_gids in self.F_ib_gids:
+            self.genconnect(F_ib_gids, self.Ib_aff_F, 0.01, 1, False, 30)
 
         # # '''muscle afferents generators'''
-        # self.Iagener_E = self.addIagener(self.muscle_E, self.muscle_F, 10, weight=3)
-        # self.Iagener_F = self.addIagener(self.muscle_F, self.muscle_E, one_step_time, weight=3)
+        # self.Ibgener_E = self.addIbgener(self.muscle_E, self.muscle_F, 10, weight=3)
+        # self.Ibgener_F = self.addIbgener(self.muscle_F, self.muscle_E, one_step_time, weight=3)
         #
         # # # '''Create connectcells'''
-        # self.genconnect(self.Iagener_E, self.Ia_aff_E, 5.5, 1, False, 20)
-        # self.genconnect(self.Iagener_F, self.Ia_aff_F, 5.5, 1, False, 30)
+        # self.genconnect(self.Ibgener_E, self.Ib_aff_E, 5.5, 1, False, 20)
+        # self.genconnect(self.Ibgener_F, self.Ib_aff_F, 5.5, 1, False, 30)
 
-        # self.connectcells(self.muscle_E, self.Ia_aff_E, 3.5, 1, 10, False)
-        # self.connectcells(self.muscle_F, self.Ia_aff_F, 3.5, 1, 10, False)
+        # self.connectcells(self.muscle_E, self.Ib_aff_E, 3.5, 1, 10, False)
+        # self.connectcells(self.muscle_F, self.Ib_aff_F, 3.5, 1, 10, False)
 
         '''cutaneous inputs'''
         cfr = 90
@@ -237,17 +237,17 @@ class CPG:
         # self.connectcells(self.BS_aff_F, self.RG_F, 0.1, 3, stdptype=False)
         # self.connectcells(self.BS_aff_E, self.RG_E, 0.1, 3, stdptype=False)
 
-        self.connectcells(self.Ia_aff_E, self.RG_E, weight=1.3, delay=3, stdptype=True)
-        self.connectcells(self.Ia_aff_F, self.RG_F, weight=1.3, delay=3, stdptype=True)
+        self.connectcells(self.Ib_aff_E, self.RG_E, weight=1.3, delay=3, stdptype=True)
+        self.connectcells(self.Ib_aff_F, self.RG_F, weight=1.3, delay=3, stdptype=True)
 
         # '''cutaneous inputs'''
         for layer in range(CV_number):
             self.connectcells(self.dict_C[layer], self.dict_CV_1[layer], 0.15 * k * speed, 2)
             self.connectcells(self.dict_CV_1[layer], self.dict_RG_E[layer], 0.0035 * k * speed, 3)
 
-        # '''Ia2motor'''
-        self.connectcells(self.Ia_aff_E, self.mns_E, 1.55, 2)
-        self.connectcells(self.Ia_aff_F, self.mns_F, 1.55, 2)
+        # '''Ib2motor'''
+        self.connectcells(self.Ib_aff_E, self.mns_E, 1.55, 2)
+        self.connectcells(self.Ib_aff_F, self.mns_F, 1.55, 2)
 
         for layer in range(CV_number):
             '''Internal to RG topology'''
@@ -267,12 +267,12 @@ class CPG:
         self.connectcells(self.mns_E, self.muscle_E, 10, 2, inhtype=False, N=45, sect="muscle")
         self.connectcells(self.mns_F, self.muscle_F, 10, 2, inhtype=False, N=45, sect="muscle")
 
-        # '''Ia2RG, RG2Motor'''
+        # '''Ib2RG, RG2Motor'''
         self.connectcells(self.InE, self.RG_F, 0.5, 1, inhtype=True)
         self.connectcells(self.InF, self.RG_E, 0.8, 1, inhtype=True)
 
-        self.connectcells(self.Ia_aff_E, self.Ia_E, 0.08, 1, inhtype=False)
-        self.connectcells(self.Ia_aff_F, self.Ia_F, 0.08, 1, inhtype=False)
+        self.connectcells(self.Ib_aff_E, self.Ib_E, 0.08, 1, inhtype=False)
+        self.connectcells(self.Ib_aff_F, self.Ib_F, 0.08, 1, inhtype=False)
 
         self.connectcells(self.mns_E, self.R_E, 0.015, 1, inhtype=False)
         self.connectcells(self.mns_F, self.R_F, 0.015, 1, inhtype=False)
@@ -280,11 +280,11 @@ class CPG:
         self.connectcells(self.R_E, self.mns_E, 0.015, 1, inhtype=True)
         self.connectcells(self.R_F, self.mns_F, 0.015, 1, inhtype=True)
 
-        self.connectcells(self.R_E, self.Ia_E, 0.001, 1, inhtype=True)
-        self.connectcells(self.R_F, self.Ia_F, 0.001, 1, inhtype=True)
+        self.connectcells(self.R_E, self.Ib_E, 0.001, 1, inhtype=True)
+        self.connectcells(self.R_F, self.Ib_F, 0.001, 1, inhtype=True)
         #
-        self.connectcells(self.Ia_E, self.mns_F, 0.08, 1, inhtype=True)
-        self.connectcells(self.Ia_F, self.mns_E, 0.08, 1, inhtype=True)
+        self.connectcells(self.Ib_E, self.mns_F, 0.08, 1, inhtype=True)
+        self.connectcells(self.Ib_F, self.mns_E, 0.08, 1, inhtype=True)
 
     def addpool(self, num, name, neurontype = "int") -> list:
         '''
@@ -541,9 +541,9 @@ class CPG:
 
         return x2
 
-    def addIagener(self, mn: list, mn2: list, start, weight=1.0):
+    def addIbgener(self, mn: list, mn2: list, start, weight=1.0):
         '''
-        Creates self.Ia generators and returns generator gid
+        Creates self.Ib generators and returns generator gid
         Parameters
         ----------
         mn: list
@@ -559,8 +559,8 @@ class CPG:
         gid: int
             generators gid
         '''
-        print(f"🎯 [rank {rank}] Creating IaGenerator: start={start}, weight={weight}")
-        logging.info(f"IaGenerator creation start: start={start}, weight={weight}")
+        print(f"🎯 [rank {rank}] Creating IbGenerator: start={start}, weight={weight}")
+        logging.info(f"IbGenerator creation start: start={start}, weight={weight}")
 
         gid = self.n_gid
         print(f"   Assigned GID: {gid}")
@@ -571,7 +571,7 @@ class CPG:
                 # Check if we have motor neurons available
                 if not mn or not mn2:
                     print(f"   ❌ Empty motor neuron lists")
-                    logging.error("Empty motor neuron lists for IaGenerator")
+                    logging.error("Empty motor neuron lists for IbGenerator")
                     self.n_gid += 1
                     return gid
 
@@ -590,9 +590,9 @@ class CPG:
                         moto2_rank = r
 
                 if moto_rank is None or moto2_rank is None:
-                    print(f"   ⚠️ Motor neurons not found locally, creating simplified IaGenerator")
+                    print(f"   ⚠️ Motor neurons not found locally, creating simplified IbGenerator")
                     # Create simplified generator without muscle connections
-                    stim = h.IaGenerator()
+                    stim = h.IbGenerator()
                     stim.start = start
                     stim.interval = int(1000 / bs_fr)
                     stim.number = int(one_step_time / stim.interval)
@@ -605,14 +605,14 @@ class CPG:
                     pc.cell(gid, ncstim)
                     
                 else:
-                    # Create full IaGenerator with muscle connections
+                    # Create full IbGenerator with muscle connections
                     moto = pc.gid2cell(moto_gid)
                     moto2 = pc.gid2cell(moto2_gid)
                     print(f"   Got motor neuron objects: {type(moto).__name__}, {type(moto2).__name__}")
 
-                    stim = h.IaGenerator()
-                    print(f"   ✅ IaGenerator created: {type(stim).__name__}")
-                    logging.info(f"IaGenerator object created successfully")
+                    stim = h.IbGenerator()
+                    print(f"   ✅ IbGenerator created: {type(stim).__name__}")
+                    logging.info(f"IbGenerator object created successfully")
 
                     stim.start = start
                     stim.interval = int(1000 / bs_fr)
@@ -642,13 +642,13 @@ class CPG:
                     self.netcons.append(ncstim)
                     pc.cell(gid, ncstim)
 
-                self.log_gid_by_lookup(gid, "Ia")
-                print(f"🎯 IaGenerator creation completed successfully: GID={gid}")
-                logging.info(f"IaGenerator creation completed: GID={gid}")
+                self.log_gid_by_lookup(gid, "Ib")
+                print(f"🎯 IbGenerator creation completed successfully: GID={gid}")
+                logging.info(f"IbGenerator creation completed: GID={gid}")
 
-            except Exception as ia_error:
-                print(f"❌ IaGenerator creation failed: {ia_error}")
-                logging.error(f"IaGenerator creation failed: {ia_error}")
+            except Exception as ib_error:
+                print(f"❌ IbGenerator creation failed: {ib_error}")
+                logging.error(f"IbGenerator creation failed: {ib_error}")
                 # Still increment GID to maintain consistency
                 pass
 
@@ -656,7 +656,7 @@ class CPG:
             # Other ranks just register the GID assignment
             pc.set_gid2node(gid, 0)
 
-        self.gener_Iagids.append(gid)
+        self.gener_Ibgids.append(gid)
         self.n_gid += 1
         return gid
 
@@ -718,15 +718,15 @@ class CPG:
             E_bs_gids.append(self.addgener(int(one_step_time * 2 * step) + 10, freq, False, 1))
         return E_bs_gids, F_bs_gids
 
-    def add_ia_geners(self):
-        E_ia_gids = []
-        F_ia_gids = []
+    def add_ib_geners(self):
+        E_ib_gids = []
+        F_ib_gids = []
         for step in range(step_number):
-            # E_ia_gids.append(self.addIagener(self.muscle_E, self.muscle_F, 10, weight=5))
-            # F_ia_gids.append(self.addIagener(self.muscle_F, self.muscle_E, one_step_time, weight=8))
-            E_ia_gids.append(self.addIagener(self.muscle_E, self.muscle_F, 15 + one_step_time * 2 * step, weight=0.1))
-            F_ia_gids.append(self.addIagener(self.muscle_F, self.muscle_E, 15 + one_step_time * (1 + 2 * step), weight=0.1))
-        return E_ia_gids, F_ia_gids
+            # E_ib_gids.append(self.addIbgener(self.muscle_E, self.muscle_F, 10, weight=5))
+            # F_ib_gids.append(self.addIbgener(self.muscle_F, self.muscle_E, one_step_time, weight=8))
+            E_ib_gids.append(self.addIbgener(self.muscle_E, self.muscle_F, 15 + one_step_time * 2 * step, weight=0.1))
+            F_ib_gids.append(self.addIbgener(self.muscle_F, self.muscle_E, 15 + one_step_time * (1 + 2 * step), weight=0.1))
+        return E_ib_gids, F_ib_gids
 
     def log_gid_by_lookup(self, gid: int, name):
         if not pc.gid_exists(gid):
@@ -808,12 +808,12 @@ def force_record(pool):
 
 def velocity_record(gids, attr='_ref_vel'):
     """
-    Records velocity-related variable (vel or v0) from IaGenerator instances
+    Records velocity-related variable (vel or v0) from IbGenerator instances
 
     Parameters
     ----------
     gids : list of int
-        gids of IaGenerator processes
+        gids of IbGenerator processes
     attr : str
         which attribute to record ('_ref_vel' or '_ref_v0')
 
@@ -976,10 +976,10 @@ def check_mechanisms():
         print("✅ STDP mechanism available")
         del stdp_test, dummy
 
-        # Проверяем IaGenerator
-        ia_test = h.IaGenerator()
-        print("✅ IaGenerator mechanism available")
-        del ia_test
+        # Проверяем IbGenerator
+        ib_test = h.IbGenerator()
+        print("✅ IbGenerator mechanism available")
+        del ib_test
 
         return True
     except Exception as e:
@@ -1055,10 +1055,10 @@ if __name__ == '__main__':
                 muscle_am_recorders.append(spike_record(group[k_nrns], location='am'))
             print(f"      ✅ {len(musclerecorders)} muscle recorder groups")
 
-            print(f"      Setting up Ia generator recorders...")
-            vel_vecs_recorders = velocity_record(cpg_ex.gener_Iagids, attr='_ref_vel')
-            v0_vecs_recorders = velocity_record(cpg_ex.gener_Iagids, attr='_ref_v0')
-            print(f"      ✅ {len(vel_vecs_recorders)} Ia generator recorders")
+            print(f"      Setting up Ib generator recorders...")
+            vel_vecs_recorders = velocity_record(cpg_ex.gener_Ibgids, attr='_ref_vel')
+            v0_vecs_recorders = velocity_record(cpg_ex.gener_Ibgids, attr='_ref_v0')
+            print(f"      ✅ {len(vel_vecs_recorders)} Ib generator recorders")
 
             print(f"   ✅ All recorders set up successfully")
             logging.info("Added recorders")
@@ -1099,8 +1099,8 @@ if __name__ == '__main__':
             for group, recorder in zip(cpg_ex.musclegroups, muscle_am_recorders):
                 spikeout(group[k_nrns], 'am_{}'.format(group[k_name]), i, recorder)
 
-            spikeout(cpg_ex.gener_Iagids, 'vel', i, vel_vecs_recorders)
-            spikeout(cpg_ex.gener_Iagids, 'v0', i, v0_vecs_recorders)
+            spikeout(cpg_ex.gener_Ibgids, 'vel', i, vel_vecs_recorders)
+            spikeout(cpg_ex.gener_Ibgids, 'v0', i, v0_vecs_recorders)
             print(f"      ✅ Spike data saved")
 
             if rank == 0:

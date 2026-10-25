@@ -156,8 +156,8 @@ class CPG:
 
         '''sensory and muscle afferents'''
         self.sens_aff = self.addpool(nAff, "sens_aff", "aff")
-        self.Ia_aff_E = self.addpool(nAff, "Ia_aff_E", "aff")
-        self.Ia_aff_F = self.addpool(nAff, "Ia_aff_F", "aff")
+        self.Ib_aff_E = self.addpool(nAff, "Ib_aff_E", "aff")
+        self.Ib_aff_F = self.addpool(nAff, "Ib_aff_F", "aff")
 
         '''moto neuron pools'''
         self.mns_E = self.addpool(nMN, "mns_E", "moto")
@@ -168,23 +168,23 @@ class CPG:
         self.muscle_F = self.addpool(nMN*20, "muscle_F", "muscle")
 
         '''reflex arc'''
-        self.Ia_E = self.addpool(nInt, "Ia_E", "int")
+        self.Ib_E = self.addpool(nInt, "Ib_E", "int")
         self.iIP_E = self.addpool(nInt, "iIP_E", "int")
         self.R_E = self.addpool(nInt, "R_E", "int")
 
-        self.Ia_F = self.addpool(nInt, "Ia_F", "int")
+        self.Ib_F = self.addpool(nInt, "Ib_F", "int")
         self.iIP_F = self.addpool(nInt, "iIP_F", "int")
         self.R_F = self.addpool(nInt, "R_F", "int")
-        # self.Iagener_E = []
-        # self.Iagener_F = []
+        # self.Ibgener_E = []
+        # self.Ibgener_F = []
 
         '''ees'''
         # TODO --
         self.ees = self.addgener(0, ees_fr, 10000, False)
 
         '''muscle afferents generators'''
-        self.Iagener_E = self.addIagener(self.muscle_E, self.muscle_F, 10)
-        self.Iagener_F = self.addIagener(self.muscle_F, self.muscle_F, speed*6)
+        self.Ibgener_E = self.addIbgener(self.muscle_E, self.muscle_F, 10)
+        self.Ibgener_F = self.addIbgener(self.muscle_F, self.muscle_F, speed*6)
 
         '''cutaneous inputs'''
         cfr = 200
@@ -205,9 +205,9 @@ class CPG:
         self.C_0 = []
         self.V0v = []
         # for i in range(step_number):
-        #     self.Iagener_E.append(self.addIagener((1 + i * (speed * 6 + 125)), self.ncell, speed))
+        #     self.Ibgener_E.append(self.addIbgener((1 + i * (speed * 6 + 125)), self.ncell, speed))
         # for i in range(step_number):
-        #     self.Iagener_F.append(self.addIagener((speed * 6 + i * (speed * 6 + 125)), self.ncell, 25))
+        #     self.Ibgener_F.append(self.addIbgener((speed * 6 + i * (speed * 6 + 125)), self.ncell, 25))
         for i in range(step_number):
             self.C_0.append(self.addgener(25 + speed * 6 + i * (speed * 6 + CV_0_len), cfr, CV_0_len/c_int, False))
             self.V0v.append(self.addgener(40 + speed * 6 + i * (speed * 6 + CV_0_len), cfr, 100/c_int, False))
@@ -221,8 +221,8 @@ class CPG:
 
         # self.C_0 = sum(self.C_0, [])
 
-        # self.Iagener_E = sum(self.Iagener_E, [])
-        # self.Iagener_F = sum(self.Iagener_F, [])
+        # self.Ibgener_E = sum(self.Ibgener_E, [])
+        # self.Ibgener_F = sum(self.Ibgener_F, [])
 
         '''generators'''
         # TODO --
@@ -281,16 +281,16 @@ class CPG:
             connectcells(self.dict_C[layer-3], self.dict_3[layer], 1.95, 1)
 
         #TODO ees -> BS
-        genconnect(self.ees, self.Ia_aff_E, 1.5, 1)
-        genconnect(self.ees, self.Ia_aff_F, 1.5, 1)
+        genconnect(self.ees, self.Ib_aff_E, 1.5, 1)
+        genconnect(self.ees, self.Ib_aff_F, 1.5, 1)
         genconnect(self.ees, self.dict_CV[0], 1.5, 2)
 
-        '''generators of Ia aff'''
-        genconnect(self.Iagener_E, self.Ia_aff_E, 0.00005, 1, False, 5)
-        genconnect(self.Iagener_F, self.Ia_aff_F, 0.0001, 1, False, 15)
-        '''Ia2motor'''
-        connectcells(self.Ia_aff_E, self.mns_E, 1.55, 1.5)
-        connectcells(self.Ia_aff_F, self.mns_F, 0.5, 1.5)
+        '''generators of Ib aff'''
+        genconnect(self.Ibgener_E, self.Ib_aff_E, 0.00005, 1, False, 5)
+        genconnect(self.Ibgener_F, self.Ib_aff_F, 0.0001, 1, False, 15)
+        '''Ib2motor'''
+        connectcells(self.Ib_aff_E, self.mns_E, 1.55, 1.5)
+        connectcells(self.Ib_aff_F, self.mns_F, 0.5, 1.5)
         '''motor2muscles'''
         connectcells(self.mns_E, self.muscle_E, 15.5, 2, False, 45)
         connectcells(self.mns_F, self.muscle_F, 15.5, 2, False, 45)
@@ -315,24 +315,24 @@ class CPG:
 
             if layer > 3:
                 #TODO --
-                connectcells(self.dict_IP_E[layer], self.Ia_aff_E, layer*0.0002, 1, True)
+                connectcells(self.dict_IP_E[layer], self.Ib_aff_E, layer*0.0002, 1, True)
             else:
-                '''RG2Ia'''
-                connectcells(self.dict_IP_E[layer], self.Ia_aff_E, 0.0001, 1, True)
+                '''RG2Ib'''
+                connectcells(self.dict_IP_E[layer], self.Ib_aff_E, 0.0001, 1, True)
             '''Flexor'''
             # connectcells(self.dict_1[layer], self.dict_IP_F[layer], 0.75, 2)
             connectcells(self.dict_2F[layer], self.dict_IP_F[layer], 2.85, 2)
-            '''RG2Motor RG2Ia'''
+            '''RG2Motor RG2Ib'''
             connectcells(self.dict_IP_F[layer], self.mns_F, 3.75, 2)
             #TODO check this
-            connectcells(self.dict_IP_F[layer], self.Ia_aff_F, 0.95, 1, True)
+            connectcells(self.dict_IP_F[layer], self.Ib_aff_F, 0.95, 1, True)
 
         for layer in range(CV_number):
             '''cutaneous inputs'''
             connectcells(self.dict_C[layer], self.dict_CV_1[layer], 0.15*k*speed, 2)
 
-        # connectcells(self.IP_F, self.Ia_aff_F, 0.0015, 2, True)
-        # connectcells(self.IP_E, self.Ia_aff_E, 0.0015, 2, True)
+        # connectcells(self.IP_F, self.Ib_aff_F, 0.0015, 2, True)
+        # connectcells(self.IP_E, self.Ib_aff_E, 0.0015, 2, True)
 
         '''C'''
         #TODO OM0 -> E:RG
@@ -381,38 +381,38 @@ class CPG:
             connectcells(self.iIP_E, self.dict_2F[layer], 1.8, 2, True)
             connectcells(self.iIP_F, self.dict_2E[layer], 0.5, 2, True)
 
-        '''RG2Ia, RG2Motor'''
+        '''RG2Ib, RG2Motor'''
         connectcells(self.iIP_E, self.IP_F, 0.5, 1, True)
-        connectcells(self.iIP_E, self.Ia_aff_F, 1.2, 1, True)
+        connectcells(self.iIP_E, self.Ib_aff_F, 1.2, 1, True)
         connectcells(self.iIP_E, self.mns_F, 0.8, 1, True)
 
         '''C=0 Flexor'''
         connectcells(self.IP_F, self.iIP_F, 0.0001, 1)
         connectcells(self.iIP_F, self.IP_E, 0.8, 1, True)
         connectcells(self.iIP_F, self.iIP_E, 0.5, 1, True)
-        connectcells(self.iIP_F, self.Ia_aff_E, 0.5, 1, True)
+        connectcells(self.iIP_F, self.Ib_aff_E, 0.5, 1, True)
         connectcells(self.iIP_F, self.mns_E, 0.4, 1, True)
         connectcells(self.C_0, self.iIP_F, 0.8, 1)
 
         '''reflex arc'''
-        connectcells(self.iIP_E, self.Ia_E, 0.001, 1)
-        connectcells(self.Ia_aff_E, self.Ia_E, 0.008, 1)
+        connectcells(self.iIP_E, self.Ib_E, 0.001, 1)
+        connectcells(self.Ib_aff_E, self.Ib_E, 0.008, 1)
         connectcells(self.mns_E, self.R_E, 0.00015, 1)
-        connectcells(self.Ia_E, self.mns_F, 0.08, 1, True)
+        connectcells(self.Ib_E, self.mns_F, 0.08, 1, True)
         connectcells(self.R_E, self.mns_E, 0.00015, 1, True)
-        connectcells(self.R_E, self.Ia_E, 0.001, 1, True)
+        connectcells(self.R_E, self.Ib_E, 0.001, 1, True)
 
-        connectcells(self.iIP_F, self.Ia_F, 0.001, 1)
-        connectcells(self.Ia_aff_F, self.Ia_F, 0.008, 1)
+        connectcells(self.iIP_F, self.Ib_F, 0.001, 1)
+        connectcells(self.Ib_aff_F, self.Ib_F, 0.008, 1)
         connectcells(self.mns_F, self.R_F, 0.00015, 1)
-        connectcells(self.Ia_F, self.mns_E, 0.08, 1, True)
+        connectcells(self.Ib_F, self.mns_E, 0.08, 1, True)
         connectcells(self.R_F, self.mns_F, 0.00015, 1, True)
-        connectcells(self.R_F, self.Ia_F, 0.001, 1, True)
+        connectcells(self.R_F, self.Ib_F, 0.001, 1, True)
 
         connectcells(self.R_E, self.R_F, 0.04, 1, True)
         connectcells(self.R_F, self.R_E, 0.04, 1, True)
-        connectcells(self.Ia_E, self.Ia_F, 0.08, 1, True)
-        connectcells(self.Ia_F, self.Ia_E, 0.08, 1, True)
+        connectcells(self.Ib_E, self.Ib_F, 0.08, 1, True)
+        connectcells(self.Ib_F, self.Ib_E, 0.08, 1, True)
         connectcells(self.iIP_E, self.iIP_F, 0.04, 1, True)
         connectcells(self.iIP_F, self.iIP_E, 0.04, 1, True)
 
@@ -506,9 +506,9 @@ class CPG:
         pc.cell(gid, ncstim)
         return gid
 
-    def addIagener(self, mn, mn2, start):
+    def addIbgener(self, mn, mn2, start):
         '''
-        Creates self.Ia generators and returns generator gids
+        Creates self.Ib generators and returns generator gids
         Parameters
         ----------
         start: int
@@ -523,7 +523,7 @@ class CPG:
         gid = 0
         moto = pc.gid2cell(random.randint(mn[0], mn[-1]))
         moto2 = pc.gid2cell(random.randint(mn2[0], mn2[-1]))
-        stim = h.IaGenerator(0.5)
+        stim = h.IbGenerator(0.5)
         stim.start = start
         h.setpointer(moto.muscle_unit(0.5)._ref_F_fHill, 'fhill', stim)
         h.setpointer(moto2.muscle_unit(0.5)._ref_F_fHill, 'fhill2', stim)
