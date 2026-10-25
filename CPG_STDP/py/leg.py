@@ -260,9 +260,6 @@ class LEG:
         connectcells(self, self.InE, self.Ib_aff_F, 1.2, 1, inhtype=True)
         connectcells(self, self.InF, self.Ib_aff_E, 0.5, 1, inhtype=True)
 
-        connectcells(self, self.InE, self.InF, 0.04, 1, inhtype=True)
-        connectcells(self, self.InF, self.InE, 0.04, 1, inhtype=True)
-
         connectcells(self, self.In1, self.RG_F, 0.5, 1, inhtype=True)
 
         # legacy drive of the Ia interneurons: physiologically they are excited by Ia, not by
@@ -282,11 +279,6 @@ class LEG:
 
         connectcells(self, self.Ia_E, self.mns_F, 0.08, 1, inhtype=True)
         connectcells(self, self.Ia_F, self.mns_E, 0.08, 1, inhtype=True)
-
-        connectcells(self, self.R_E, self.R_F, 0.04, 1, inhtype=True)
-        connectcells(self, self.R_F, self.R_E, 0.04, 1, inhtype=True)
-        connectcells(self, self.Ia_E, self.Ia_F, 0.08, 1, inhtype=True)
-        connectcells(self, self.Ia_F, self.Ia_E, 0.08, 1, inhtype=True)
 
         ''' Commisural projections '''
         #connectcells(self, self.RG_F, self.V2a, 0.75, 3)
