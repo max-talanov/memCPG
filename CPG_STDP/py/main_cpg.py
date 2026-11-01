@@ -16,9 +16,10 @@ from utils_cpg import *
 from leg import *
 from recorg_cpg import *
 from bs_command import WALK
+from joint_mechanics import LegJoint, run_coupled
 
 
-def prun(speed, step_number):
+def prun(speed, step_number, joints=()):
     print(f"🚀 [rank {rank}] Starting simulation: speed={speed}, steps={step_number}")
     logging.info(f"prun start: speed={speed}, steps={step_number}, time_sim={time_sim}")
 
@@ -46,7 +47,10 @@ def prun(speed, step_number):
         print(f"   ✅ finitialize completed")
 
         print(f"   Starting main simulation...")
-        if platform.system() == "Darwin":
+        if joints:
+            run_coupled(h, pc, joints, time_sim, JOINT_EXCHANGE_MS,
+                        use_psolve=not is_macos or nhost > 1)
+        elif platform.system() == "Darwin" and nhost == 1:
             # Альтернативный подход для macOS
             while h.t < time_sim:
                 h.fadvance()
@@ -137,6 +141,12 @@ if __name__ == '__main__':
 
             LEG_L.add_ia_pathway()
             LEG_R.add_ia_pathway()
+            joints = ()
+            if JOINT_ENABLED:
+                joints = (LegJoint(LEG_L, pc, JOINT_PARAMETERS),
+                          LegJoint(LEG_R, pc, JOINT_PARAMETERS))
+                print(f'   Joint mechanics enabled, exchange={JOINT_EXCHANGE_MS} ms')
+                logging.info('Joint mechanics: %s', JOINT_PARAMETERS)
             #create_connect_bs(LEG_R, LEG_L)
             #add_external_connections(LEG_R, LEG_L)
             print(f"   ✅ CPG network created successfully")
@@ -196,12 +206,13 @@ if __name__ == '__main__':
             pc.barrier()
 
             logging.info(f"[version {i + 1}] simulation start")
-            sim_time_sec = prun(speed, step_number)
+            sim_time_sec = prun(speed, step_number, joints)
             logging.info(f"[version {i + 1}] simulation time: {sim_time_sec:.3f} s")
 
             logging.info("Simulation done")
 
             print(f"   💾 Saving results...")
+            save_joint_recordings(joints, i)
 
             left_raw = []
             right_raw = []

@@ -1,6 +1,48 @@
 from constants import *
+from dataclasses import asdict
+import json
 
 OVERVIEW_ORDER = ("RG_F", "RG_E", "InF", "InE", "V2a", "V0v", "V0d", "V3f")
+
+
+def save_joint_recordings(joints, version):
+    """Save mechanics on its own exchange grid, with explicit units/parameters."""
+    if rank != 0:
+        return
+    for joint in joints:
+        if not joint.history:
+            continue
+        stem = os.path.join(file_name, f'joint_{joint.name}_v{version}')
+        with hdf5.File(stem + '.hdf5', 'w') as output:
+            output.attrs['parameters_si'] = json.dumps(asdict(joint.model.parameters))
+            output.attrs['force_aggregation'] = 'population mean of representative units'
+            output.attrs['exchange_ms'] = JOINT_EXCHANGE_MS
+            output.attrs['time_grid'] = 'mechanical exchange endpoints'
+            for name, values in joint.history.items():
+                output.create_dataset(name, data=np.asarray(values), compression='gzip')
+
+        from matplotlib.figure import Figure
+        from matplotlib.backends.backend_agg import FigureCanvasAgg
+        figure = Figure(figsize=(10, 9), constrained_layout=True)
+        FigureCanvasAgg(figure)
+        axes = figure.subplots(4, 1, sharex=True)
+        history = joint.history
+        time_s = np.asarray(history['time_ms']) / 1000
+        axes[0].plot(time_s, np.degrees(history['angle_rad']))
+        axes[0].set_ylabel('Angle (deg)')
+        for side, color in (('E', 'tab:blue'), ('F', 'tab:orange')):
+            axes[1].plot(time_s, history[f'length_mt_{side}_mm'], color=color, label=side)
+            axes[2].plot(time_s, history[f'fiber_length_{side}_mm'], color=color, label=side)
+            axes[3].plot(time_s, history[f'force_{side}_N'], color=color, label=side)
+        for axis, label in zip(axes[1:], ('Path length (mm)', 'Fibre length (mm)', 'Tension (N)')):
+            axis.set_ylabel(label)
+            axis.legend(loc='upper right')
+        for axis in axes:
+            axis.grid(alpha=0.25)
+        axes[-1].set_xlabel('Time (s)')
+        figure.suptitle(f'{joint.name}: separate extensor E and flexor F')
+        figure.savefig(stem + '.png', dpi=150)
+        logging.info('Joint recordings saved: %s', stem)
 
 
 def normalize_overview_name(raw_name):

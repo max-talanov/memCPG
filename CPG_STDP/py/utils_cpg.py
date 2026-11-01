@@ -52,6 +52,7 @@ def addpool(leg, num, name, neurontype="int") -> list:
                 leg.affs.append(cell)
             elif neurontype.lower() == "muscle":
                 cell = muscle()
+                cell.configure_mechanics(JOINT_PARAMETERS.rest_length_m * 1000)
                 leg.muscles.append(cell)
             elif neurontype.lower() == "bursting":
                 cell = interneuron(False, bursting_mode=True)

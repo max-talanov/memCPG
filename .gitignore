@@ -59,4 +59,5 @@ obj
 *.so
 **/res/*.*
 **/__pycache__/*.*
+.venv-neuron-wsl/
 

@@ -24,4 +24,4 @@ To run parallel calculation, please, use this command:
 
 mpiexec -n [number_of_threads] nrniv -mpi -python test_stdp_la_with_gid.py 
 
-or mpiexec -n [number_of_threads] nrniv -python test_stdp_la_with_gid.py 
+or mpiexec -n [number_of_threads] nrniv -python test_stdp_la_with_gid.py

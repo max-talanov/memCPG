@@ -17,8 +17,8 @@ NEURON {
 
 	::simulation::
 	RANGE spk_index, t_axon, R
-	USEION mg WRITE mgi VALENCE 2
-	USEION cl READ cli VALENCE -1
+	POINTER fiber_length
+	RANGE activation, fiber_length0, length_reference
 }
 
 PARAMETER {
@@ -60,6 +60,8 @@ PARAMETER {
 	vth = -40
 	spk_index = 0
 	t_axon = 0.01
+	fiber_length0 = 3 : mm, reference physical fibre length
+	length_reference = -8 : preserve the original phi() coordinate convention
 }
 
 STATE {
@@ -80,10 +82,10 @@ ASSIGNED {
 	k6
 	AMinf
 	AMtau
-	cli
+	fiber_length
 	last_spk	(ms)
 	acm
-	mgi
+	activation
 }
 
 BREAKPOINT {
@@ -94,11 +96,11 @@ BREAKPOINT {
 	SOLVE state METHOD cnexp
 
 	::isometric and isokinetic condition::
-	set_mgi()
+	set_activation()
 }
 
 DERIVATIVE state { LOCAL Uval
-	rate (cli, CaT, AM, t)
+	rate (length_reference + fiber_length - fiber_length0, CaT, AM, t)
 
 	Uval = U(Ca)
 	CaSR' = -k1*CS0*CaSR + (k1*CaSR+k2)*CaSRCS - R + Uval
@@ -142,21 +144,22 @@ PROCEDURE CaR (CaSR (M), t (ms)) { LOCAL tempR, t_minus_last  ::Ca_Release::
       t_minus_last = t - last_spk
       tempR = CaSR*Rmax*(1-exp(-t_minus_last/t1))*exp(-t_minus_last/t2)
     } else { tempR = 0 }
-    R = tempR
+	if (t < last_spk) { tempR = 0 }
+	R = tempR
 	}
 	else {R = 0}
 }
 
-PROCEDURE rate (cli (M), CaT (M), AM (M), t(ms)) { LOCAL x
-	k5 = phi(cli)*k5i
+PROCEDURE rate (length_coordinate, CaT (M), AM (M), t(ms)) { LOCAL x
+	k5 = phi(length_coordinate)*k5i
 	k6 = k6i/(1 + SF_AM*AM)
 	x = CaT/T0
 	AMinf = 0.5*(1+tanh((x-c1)/c2))
 	AMtau = c3/(cosh((x-c4)/(2*c5)))
 }
 
-PROCEDURE set_mgi() {
-	mgi = AM^alpha
+PROCEDURE set_activation() {
+	activation = AM^alpha
 }
 
 INITIAL {
@@ -166,8 +169,9 @@ INITIAL {
 	CaB = 0				:[M]
 	CaT = 0				:[M]
 	AM = 0				:[M]
-	set_mgi()
+	set_activation()
 	last_spk = -1e9
 	spk_index = 0
 	R_On = 0
+	Spike_On = 0
 }

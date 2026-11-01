@@ -1,5 +1,5 @@
 from neuron import h
-import random
+import math
 
 h.load_file('stdlib.hoc')  # for h.lambda_f
 
@@ -27,6 +27,7 @@ class muscle(object):
         self.geom()
         self.geom_nseg()
         self.biophys()
+        self.configure_mechanics(5.0)
         self.synlistex = []
         self.synlistinh = []
         self.synapses()
@@ -94,7 +95,16 @@ class muscle(object):
         # CaSP и fHill в muscle_unit:
         self.muscle_unit.insert('CaSP')
         self.muscle_unit.insert('fHill')
-        self.muscle_unit.insert('xm')
+        # Explicit mechanical variables replace the old Cl/Mg transport.
+        try:
+            for seg in self.muscle_unit:
+                h.setpointer(seg._ref_fiber_length_fHill, 'fiber_length', seg.CaSP)
+                h.setpointer(seg._ref_activation_CaSP, 'activation', seg.fHill)
+        except (AttributeError, LookupError) as error:
+            raise RuntimeError(
+                'Recompile NEURON mechanisms: nrnivmodl mod_files '
+                '(the muscle now requires explicit length/activation pointers)'
+            ) from error
         # self.muscle_unit.insert('extracellular')
 
         # self.muscle_unit.ena = 50
@@ -125,6 +135,30 @@ class muscle(object):
         self.soma.ek = -80
 
         self.soma.insert('extracellular')
+
+    def configure_mechanics(self, rest_length_mm, fiber_length_mm=3.0):
+        """Set positive reference lengths without changing electrical geometry."""
+        if (not math.isfinite(rest_length_mm) or not math.isfinite(fiber_length_mm)
+                or fiber_length_mm <= 0 or rest_length_mm <= fiber_length_mm):
+            raise ValueError('Musculotendon rest length must exceed the positive fibre length')
+        self.rest_length_mm = rest_length_mm
+        for seg in self.muscle_unit:
+            seg.fiber_length0_fHill = fiber_length_mm
+            seg.tendon_slack_length_fHill = rest_length_mm - fiber_length_mm
+            seg.fiber_length0_CaSP = fiber_length_mm
+        self.set_musculotendon_length(rest_length_mm)
+
+    def set_musculotendon_length(self, length_mm):
+        if not math.isfinite(length_mm) or length_mm <= 0:
+            raise ValueError('Musculotendon length must be finite and positive')
+        for seg in self.muscle_unit:
+            seg.length_fHill = length_mm
+
+    def mechanical_state(self):
+        """Tendon tension (N), fibre length (mm), fibre velocity (mm/s)."""
+        seg = self.muscle_unit(0.5)
+        force = seg.F_fHill if math.isfinite(seg.activation_CaSP) else math.nan
+        return force, seg.fiber_length_fHill, seg.velocity_fHill * 1000
 
     def connect2target(self, target):
         '''

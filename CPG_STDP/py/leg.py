@@ -431,7 +431,9 @@ class LEG:
             stim = h.IaGenerator()
             stim.start = 5
             stim.rate0 = IA_BASE_RATE_HZ
-            h.setpointer(muscle_cell.muscle_unit(0.5)._ref_xm_fHill, "xm", stim)
+            seg = muscle_cell.muscle_unit(0.5)
+            stim.xm_rest = seg.fiber_length0_fHill
+            h.setpointer(seg._ref_fiber_length_fHill, "xm", stim)
 
             pc.set_gid2node(gid, owner_rank)
             ncstim = h.NetCon(stim, None)

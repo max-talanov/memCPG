@@ -15,7 +15,7 @@ PARAMETER {
 	k_vel	= 2			: (Hz per mm/s) dynamic sensitivity to stretch velocity
 	rmin	= 2			: (Hz) lower bound of the firing rate
 	rmax	= 200		: (Hz) upper bound of the firing rate
-	xm_rest	= -8 (mm)	: resting length (xm.mod: amp = -8)
+	xm_rest	= 3 (mm)	: positive resting fibre length; set from fHill in leg.py
 }
 
 ASSIGNED {

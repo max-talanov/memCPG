@@ -5,6 +5,7 @@ import h5py as hdf5
 import logging
 import random
 import re
+from joint_mechanics import JointParameters
 
 logging.basicConfig(filename='logs_new_new_2.log',
                     filemode='w',
@@ -42,23 +43,13 @@ h.load_file('stdrun.hoc')
 
 # paralleling NEURON stuff
 def check_mpi_status():
-    try:
-        # h.nrnmpi_init()
-        pc = h.ParallelContext()
-        rank = int(pc.id())
-        nhost = int(pc.nhost())
-
-        print(f"MPI Status:")
-        print(f"  Rank: {rank}")
-        print(f"  Number of hosts: {nhost}")
-        print(f"  MPI initialized: {h.nrnmpi_is_initialized()}")
-
-        return pc, rank, nhost
-    except Exception as e:
-        print(f"MPI Error: {e}")
-        # Fallback to single process
-        pc = h.ParallelContext()
-        return pc, 0, 1
+    # nrniv -mpi initializes MPI before Python is entered. Do not replace the
+    # real ranks with 0/1 when an optional version-specific diagnostic is absent.
+    pc = h.ParallelContext()
+    rank = int(pc.id())
+    nhost = int(pc.nhost())
+    print(f'MPI Status: rank {rank} of {nhost}')
+    return pc, rank, nhost
 
 # Initialize MPI properly
 pc, rank, nhost = check_mpi_status()
@@ -74,7 +65,9 @@ k = 0.017  # CV weights multiplier to take into account air and toe stepping
 CV_0_len = 12  # 125 # Duration of the CV generator with no sensory inputs
 extra_layers = 0  # 1 + layers
 
-step_number = 6 #quick test #50 # 70 max that works  # 100 weights are not recorded # 50 #15 #10
+step_number = int(os.environ.get('CPG_STEP_NUMBER', 6))
+if step_number < 1:
+    raise ValueError('CPG_STEP_NUMBER must be positive')
 
 one_step_time = int((6 * speed + CV_0_len) / (int(1000 / bs_fr))) * (int(1000 / bs_fr))
 time_sim = (one_step_time * step_number + 30)*2
@@ -104,9 +97,26 @@ if "CPG_OUT" in os.environ:
 elif (speed, k, BWS, INJURY) != (100, 0.017, 0.0, 0.0):
     file_name = f"res_sp{speed}_k{k:g}_bws{BWS:g}_inj{INJURY:g}"
 
-'''Ia (muscle spindle) pathway, see leg.add_ia_pathway(). The spindles fire and are recorded,
-but every synapse they make is scaled by IA_WEIGHT_SCALE: 0 while the muscle length is fixed
-(a spindle at constant length carries no information), 1 once the length becomes dynamic.'''
+# One independent mechanical joint per leg. Set CPG_JOINT=0 for a fixed-path
+# control run (the updated muscle/tendon model is still used).
+if os.environ.get('CPG_JOINT', '1') not in ('0', '1'):
+    raise ValueError('CPG_JOINT must be 0 or 1')
+JOINT_ENABLED = os.environ.get('CPG_JOINT', '1') == '1'
+JOINT_EXCHANGE_MS = float(os.environ.get('CPG_JOINT_DT_MS', '0.1'))
+if not np.isfinite(JOINT_EXCHANGE_MS) or JOINT_EXCHANGE_MS <= 0:
+    raise ValueError('CPG_JOINT_DT_MS must be finite and positive')
+# Physical joint parameters are edited in joint_mechanics.JointParameters.
+JOINT_PARAMETERS = JointParameters()
+if JOINT_ENABLED and 'CPG_OUT' not in os.environ:
+    file_name += '_joint'
+if 'CPG_TSTOP_MS' in os.environ:
+    time_sim = float(os.environ['CPG_TSTOP_MS'])
+    if not np.isfinite(time_sim) or time_sim <= 0:
+        raise ValueError('CPG_TSTOP_MS must be finite and positive')
+
+'''Ia pathway: spindles now read physical contractile-fibre length. Keep the
+neural gain explicit for comparisons; CPG_IA_SCALE=0 records spindle activity
+without changing the CPG, and a positive value enables its synaptic drive.'''
 IA_WEIGHT_SCALE = float(os.environ.get("CPG_IA_SCALE", 0.0))
 IA_BASE_RATE_HZ = 50.0  # tonic Ia rate at resting length and zero stretch velocity
 
