@@ -120,7 +120,10 @@ if __name__ == '__main__':
     if rank == 0:
         for directory in (file_name, STDP_DIR_LEFT, STDP_DIR_RIGHT):
             os.makedirs(directory, exist_ok=True)
+        save_run_metadata()
         print(f"   ✅ Output directory: {file_name}")
+
+    print(f"   Feedback gains: Ia={IA_WEIGHT_SCALE}, Ib inhibition={IB_INHIB_WEIGHT_SCALE}")
 
     for i in range(versions):
         print(f"🔄 [rank {rank}] VERSION {i + 1}/{versions} START")
@@ -274,6 +277,12 @@ if __name__ == '__main__':
             for group, recorder in zip(LEG_R.musclegroups, muscle_am_recorders_r):
                 spikeout(group[k_nrns], 'am_{}'.format(group[k_name]), i, recorder, "right")
 
+            for leg, label in ((LEG_L, 'left'), (LEG_R, 'right')):
+                for pathway, gids in (('Ia', leg.gener_Iagids), ('Ib', leg.gener_Ibgids)):
+                    gid_set = set(gids)
+                    generator_spikeout([(gid, vec) for gid, vec in leg.gen_spike_vectors
+                                        if gid in gid_set], pathway, i, label)
+
             # spikeout(cpg_ex.gener_Ibgids, 'vel', i, vel_vecs_recorders)
             # spikeout(cpg_ex.gener_Ibgids, 'v0', i, v0_vecs_recorders)
             # print(f"      ✅ Spike data saved")
@@ -302,7 +311,7 @@ if __name__ == '__main__':
             import traceback
 
             print(f"Traceback: {traceback.format_exc()}")
-            break
+            raise
 
     print(f"🏁 [rank {rank}] MAIN EXECUTION FINISHED")
     logging.info("=== MAIN EXECUTION END ===")

@@ -1,8 +1,35 @@
 from constants import *
 from dataclasses import asdict
 import json
+import hashlib
+from pathlib import Path
+import neuron
 
 OVERVIEW_ORDER = ("RG_F", "RG_E", "InF", "InE", "V2a", "V0v", "V0d", "V3f")
+
+
+def save_run_metadata():
+    if rank != 0:
+        return
+    source_dir = Path(__file__).resolve().parent
+    sources = sorted(source_dir.glob('*.py')) + sorted((source_dir / 'mod_files').glob('*.mod'))
+    metadata = {
+        'neuron_version': neuron.__version__, 'mpi_ranks': nhost,
+        'random_seed': RANDOM_SEED, 'steps': step_number,
+        'speed': speed, 'bs_fr': bs_fr, 'k': k, 'bws': BWS, 'injury': INJURY,
+        'tstop_ms': time_sim, 'electrical_dt_ms': 0.025,
+        'joint_enabled': JOINT_ENABLED, 'joint_exchange_ms': JOINT_EXCHANGE_MS,
+        'joint_parameters_si': asdict(JOINT_PARAMETERS),
+        'ia_scale': IA_WEIGHT_SCALE, 'ib_inhib_scale': IB_INHIB_WEIGHT_SCALE,
+        'ia_weights': {'mn': IA_MN_WEIGHT, 'rg': IA_RG_WEIGHT,
+                       'interneuron': IA_INTERNEURON_WEIGHT},
+        'ia_baseline_hz': IA_BASE_RATE_HZ,
+        'environment': {key: value for key, value in os.environ.items() if key.startswith('CPG_')},
+        'source_sha256': {str(path.relative_to(source_dir)): hashlib.sha256(path.read_bytes()).hexdigest()
+                          for path in sources},
+    }
+    with open(os.path.join(file_name, 'run_config.json'), 'w') as output:
+        json.dump(metadata, output, indent=2, sort_keys=True)
 
 
 def save_joint_recordings(joints, version):
@@ -127,7 +154,6 @@ def gather_population_average(pool, v_vec):
         outavg = np.asarray(v_vec[0], dtype=np.float32).copy()
         for j in range(1, n_local):
             outavg += np.asarray(v_vec[j], dtype=np.float32)
-        outavg /= n_local
     else:
         outavg = np.empty(0, dtype=np.float32)
 
@@ -135,7 +161,7 @@ def gather_population_average(pool, v_vec):
     vec.from_python(outavg)
 
     pc.barrier()
-    result = pc.py_gather(vec, 0)
+    result = pc.py_gather((vec, n_local), 0)
 
     if rank != 0:
         return None
@@ -144,10 +170,12 @@ def gather_population_average(pool, v_vec):
         return np.empty(0, dtype=np.float32)
 
     arrays = []
-    for r in result:
-        arr = np.asarray(r, dtype=np.float32)
-        if arr.size > 0:
+    total_cells = 0
+    for values, count in result:
+        arr = np.asarray(values, dtype=np.float32)
+        if arr.size > 0 and count > 0:
             arrays.append(arr)
+            total_cells += count
 
     if not arrays:
         return np.empty(0, dtype=np.float32)
@@ -159,7 +187,7 @@ def gather_population_average(pool, v_vec):
     out = np.zeros(min_len, dtype=np.float32)
     for arr in arrays:
         out += arr[:min_len]
-    out /= len(arrays)
+    out /= total_cells
     return out
 
 
@@ -393,12 +421,12 @@ def generator_spikeout(gen_vecs, name, version, leg):
         logging.info(f"start recording generators {name}")
 
         # gathered = [rank0_data, rank1_data, ...]
-        for rank_data in gathered:
+        for source_rank, rank_data in enumerate(gathered):
             if rank_data is None:
                 continue
             for gid, spikes in rank_data:
                 fname = (
-                    f'{gen_dir}/gen_{gid}_rank{rank}_'
+                    f'{gen_dir}/gen_{gid}_rank{source_rank}_'
                     f'sp_{speed}_CVs_{CV_number}_bs_{bs_fr}_{leg}_v{version}.hdf5'
                 )
                 with hdf5.File(fname, 'w') as f:

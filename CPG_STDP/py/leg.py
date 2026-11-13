@@ -138,8 +138,7 @@ class LEG:
 
         # '''reflex arc'''
         # Ia inhibitory interneurons: reciprocal inhibition of the antagonist motoneurons.
-        # Their Ia afferent input is added in add_ia_pathway(); until it is switched on they
-        # are driven by Ib_aff (see the IB_TO_IA_INT legacy connection below).
+        # Their spindle input is added in add_ia_pathway().
         self.Ia_E = addpool(self, self.nInt, "Ia_E", "int")
         self.R_E = addpool(self, self.nInt, "R_E", "int")  # Renshaw cells
         self.Ia_F = addpool(self, self.nInt, "Ia_F", "int")
@@ -262,12 +261,6 @@ class LEG:
 
         connectcells(self, self.In1, self.RG_F, 0.5, 1, inhtype=True)
 
-        # legacy drive of the Ia interneurons: physiologically they are excited by Ia, not by
-        # Ib, but Ia carries no information while the muscle length is fixed. Drop these two
-        # once add_ia_pathway() runs with IA_WEIGHT_SCALE = 1.
-        connectcells(self, self.Ib_aff_E, self.Ia_E, 0.08, 1, inhtype=False)
-        connectcells(self, self.Ib_aff_F, self.Ia_F, 0.08, 1, inhtype=False)
-
         connectcells(self, self.mns_E, self.R_E, 0.015, 1, inhtype=False)
         connectcells(self, self.mns_F, self.R_F, 0.015, 1, inhtype=False)
 
@@ -374,7 +367,10 @@ class LEG:
         return gid
 
     def add_ia_pathway(self):
-        logging.info("add_ia_pathway: %s | IA_WEIGHT_SCALE=%s", self.name, IA_WEIGHT_SCALE)
+        if hasattr(self, "Ia_aff_E"):
+            raise RuntimeError("Ia/Ib feedback has already been added to this leg")
+        logging.info("add_ia_pathway: %s | Ia=%s Ib inhibition=%s",
+                     self.name, IA_WEIGHT_SCALE, IB_INHIB_WEIGHT_SCALE)
 
         '''Ia afferents (muscle spindles) and Ib inhibitory interneurons'''
         self.Ia_aff_E = addpool(self, self.nAff, "Ia_aff_E", "aff")
@@ -392,18 +388,19 @@ class LEG:
 
         scale = IA_WEIGHT_SCALE
         '''Ia2motor: monosynaptic stretch reflex onto the homonymous motoneurons'''
-        self._scaled(scale, lambda: connectcells(self, self.Ia_aff_E, self.mns_E, 1.55, 2))
-        self._scaled(scale, lambda: connectcells(self, self.Ia_aff_F, self.mns_F, 1.55, 2))
+        self._scaled(scale, lambda: connectcells(self, self.Ia_aff_E, self.mns_E, IA_MN_WEIGHT, 2))
+        self._scaled(scale, lambda: connectcells(self, self.Ia_aff_F, self.mns_F, IA_MN_WEIGHT, 2))
 
         '''Ia2Ia-interneuron: reciprocal inhibition of the antagonist'''
-        self._scaled(scale, lambda: connectcells(self, self.Ia_aff_E, self.Ia_E, 0.08, 1))
-        self._scaled(scale, lambda: connectcells(self, self.Ia_aff_F, self.Ia_F, 0.08, 1))
+        self._scaled(scale, lambda: connectcells(self, self.Ia_aff_E, self.Ia_E, IA_INTERNEURON_WEIGHT, 1))
+        self._scaled(scale, lambda: connectcells(self, self.Ia_aff_F, self.Ia_F, IA_INTERNEURON_WEIGHT, 1))
 
         '''Ia2RG'''
-        self._scaled(scale, lambda: connectcells(self, self.Ia_aff_E, self.RG_E, 0.3, 3))
-        self._scaled(scale, lambda: connectcells(self, self.Ia_aff_F, self.RG_F, 0.3, 3))
+        self._scaled(scale, lambda: connectcells(self, self.Ia_aff_E, self.RG_E, IA_RG_WEIGHT, 3))
+        self._scaled(scale, lambda: connectcells(self, self.Ia_aff_F, self.RG_F, IA_RG_WEIGHT, 3))
 
         '''Ib2Ib-interneuron -> autogenic inhibition of its own motoneurons'''
+        scale = IB_INHIB_WEIGHT_SCALE
         self._scaled(scale, lambda: connectcells(self, self.Ib_aff_E, self.Ib_E, 0.08, 1))
         self._scaled(scale, lambda: connectcells(self, self.Ib_aff_F, self.Ib_F, 0.08, 1))
         self._scaled(scale, lambda: connectcells(self, self.Ib_E, self.mns_E, 0.08, 1, inhtype=True))

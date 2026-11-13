@@ -3,7 +3,7 @@ NEURON	{
     POINTER fhill, fhill2
   RANGE y
   RANGE interval, number, start
-  RANGE noise, freq, mean, vel, invl, v0
+  RANGE noise, freq, mean, vel, v0
   RANGE vmin, dur
 }
 

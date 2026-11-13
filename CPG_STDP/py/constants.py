@@ -114,11 +114,22 @@ if 'CPG_TSTOP_MS' in os.environ:
     if not np.isfinite(time_sim) or time_sim <= 0:
         raise ValueError('CPG_TSTOP_MS must be finite and positive')
 
-'''Ia pathway: spindles now read physical contractile-fibre length. Keep the
-neural gain explicit for comparisons; CPG_IA_SCALE=0 records spindle activity
-without changing the CPG, and a positive value enables its synaptic drive.'''
-IA_WEIGHT_SCALE = float(os.environ.get("CPG_IA_SCALE", 0.0))
+'''Ia and Ib gains are independent. Ia is tonic, so its excitatory weights
+must be smaller than the weights used for phase-limited Ib bursts.
+These initial gains require validation in the full coupled network.'''
+IA_WEIGHT_SCALE = float(os.environ.get("CPG_IA_SCALE", 1.0))
+IB_INHIB_WEIGHT_SCALE = float(os.environ.get("CPG_IB_INHIB_SCALE", 1.0))
+for gain_name, gain in (("CPG_IA_SCALE", IA_WEIGHT_SCALE),
+                        ("CPG_IB_INHIB_SCALE", IB_INHIB_WEIGHT_SCALE)):
+    if not np.isfinite(gain) or gain < 0:
+        raise ValueError(f"{gain_name} must be finite and non-negative")
 IA_BASE_RATE_HZ = 50.0  # tonic Ia rate at resting length and zero stretch velocity
+# A synchronous 50-Hz train over 65 synapses must not by itself entrain
+# a resting motoneuron. These weights were checked on isolated cells;
+# modulation during locomotion still needs the coupled cluster run.
+IA_MN_WEIGHT = 0.0003
+IA_RG_WEIGHT = 0.0003
+IA_INTERNEURON_WEIGHT = 0.0008
 
 STDP_RECOVERY_WMAX_FACTOR = 1.0  # wmax = factor * INJURY * w_Ib
 STDP_RECOVERY_HEBB_FRACTION = 0.02  # LTP step, fraction of the post-injury CUT weight per event

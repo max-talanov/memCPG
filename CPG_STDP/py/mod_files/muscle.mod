@@ -7,8 +7,8 @@ NEURON {
 
 	::module 1::
 	RANGE k1, k2, k3, k4, k5, k6, k, k5i, k6i
-	RANGE Umax, Rmax, t1, t2, R, vth, U
-	RANGE phi1, phi2, phi3, phi4, phi
+	RANGE Umax, Rmax, t1, t2, R, vth
+	RANGE phi1, phi2, phi3, phi4
 
 	::module 2::
 	RANGE c1, c2, c3, c4, c5
