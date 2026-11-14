@@ -395,6 +395,13 @@ class LEG:
         self._scaled(scale, lambda: connectcells(self, self.Ia_aff_E, self.Ia_E, IA_INTERNEURON_WEIGHT, 1))
         self._scaled(scale, lambda: connectcells(self, self.Ia_aff_F, self.Ia_F, IA_INTERNEURON_WEIGHT, 1))
 
+        self._scaled(scale, lambda: connectcells(self, self.RG_E, self.Ia_E, IA_PATTERN_WEIGHT, 1))
+        self._scaled(scale, lambda: connectcells(self, self.RG_F, self.Ia_F, IA_PATTERN_WEIGHT, 1))
+        self._scaled(scale, lambda: connectcells(self, self.Ia_E, self.Ia_F,
+                                               IA_RECIPROCAL_WEIGHT, 1, inhtype=True))
+        self._scaled(scale, lambda: connectcells(self, self.Ia_F, self.Ia_E,
+                                               IA_RECIPROCAL_WEIGHT, 1, inhtype=True))
+
         '''Ia2RG'''
         self._scaled(scale, lambda: connectcells(self, self.Ia_aff_E, self.RG_E, IA_RG_WEIGHT, 3))
         self._scaled(scale, lambda: connectcells(self, self.Ia_aff_F, self.RG_F, IA_RG_WEIGHT, 3))

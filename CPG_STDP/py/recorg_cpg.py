@@ -22,7 +22,8 @@ def save_run_metadata():
         'joint_parameters_si': asdict(JOINT_PARAMETERS),
         'ia_scale': IA_WEIGHT_SCALE, 'ib_inhib_scale': IB_INHIB_WEIGHT_SCALE,
         'ia_weights': {'mn': IA_MN_WEIGHT, 'rg': IA_RG_WEIGHT,
-                       'interneuron': IA_INTERNEURON_WEIGHT},
+                       'interneuron': IA_INTERNEURON_WEIGHT,
+                       'pattern': IA_PATTERN_WEIGHT, 'reciprocal': IA_RECIPROCAL_WEIGHT},
         'ia_baseline_hz': IA_BASE_RATE_HZ,
         'environment': {key: value for key, value in os.environ.items() if key.startswith('CPG_')},
         'source_sha256': {str(path.relative_to(source_dir)): hashlib.sha256(path.read_bytes()).hexdigest()
