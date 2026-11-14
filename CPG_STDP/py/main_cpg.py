@@ -144,6 +144,12 @@ if __name__ == '__main__':
 
             LEG_L.add_ia_pathway()
             LEG_R.add_ia_pathway()
+            ia_cell_recorders = {}
+            for leg, label in ((LEG_L, 'left'), (LEG_R, 'right')):
+                for pool_name, gids in (('Ia_int_E', leg.Ia_E), ('Ia_int_F', leg.Ia_F)):
+                    netcons, vectors = cell_output_spike_record(gids)
+                    leg.netcons.extend(netcons)
+                    ia_cell_recorders[(label, pool_name)] = vectors
             joints = ()
             if JOINT_ENABLED:
                 joints = (LegJoint(LEG_L, pc, JOINT_PARAMETERS),
@@ -282,6 +288,8 @@ if __name__ == '__main__':
                     gid_set = set(gids)
                     generator_spikeout([(gid, vec) for gid, vec in leg.gen_spike_vectors
                                         if gid in gid_set], pathway, i, label)
+                for pool_name in ('Ia_int_E', 'Ia_int_F'):
+                    generator_spikeout(ia_cell_recorders[(label, pool_name)], pool_name, i, label)
 
             # spikeout(cpg_ex.gener_Ibgids, 'vel', i, vel_vecs_recorders)
             # spikeout(cpg_ex.gener_Ibgids, 'v0', i, v0_vecs_recorders)

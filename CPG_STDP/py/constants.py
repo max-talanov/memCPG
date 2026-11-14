@@ -129,7 +129,7 @@ IA_BASE_RATE_HZ = 50.0  # tonic Ia rate at resting length and zero stretch veloc
 # modulation during locomotion still needs the coupled cluster run.
 IA_MN_WEIGHT = 0.0003
 IA_RG_WEIGHT = 0.0003
-IA_INTERNEURON_WEIGHT = 0.0008
+IA_INTERNEURON_WEIGHT = 0.002
 
 STDP_RECOVERY_WMAX_FACTOR = 1.0  # wmax = factor * INJURY * w_Ib
 STDP_RECOVERY_HEBB_FRACTION = 0.02  # LTP step, fraction of the post-injury CUT weight per event

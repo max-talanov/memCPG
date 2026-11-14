@@ -389,6 +389,19 @@ def setup_recorders(leg, recorder_list, group_attr, group_name):
     recorder_list.extend([spike_record(group[k_nrns], max_units=2, seed=123) for group in getattr(leg, group_attr)])
 
 
+def cell_output_spike_record(pool):
+    """Record each local cell at the same axonal threshold used by the network."""
+    netcons, vectors = [], []
+    for gid in pool:
+        if pc.gid_exists(gid):
+            nc = pc.gid2cell(gid).connect2target(None)
+            times = h.Vector()
+            nc.record(times)
+            netcons.append(nc)
+            vectors.append((gid, times))
+    return netcons, vectors
+
+
 def generator_spikeout(gen_vecs, name, version, leg):
     """
     Saves generator spike times
