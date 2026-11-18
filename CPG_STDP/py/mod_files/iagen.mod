@@ -1,98 +1,116 @@
+TITLE Muscle spindle Ia rate sampled independently of output spikes
+
 NEURON {
-	ARTIFICIAL_CELL IaGenerator
-	POINTER xm
-	RANGE start, dur, noise
-	RANGE rate0, k_len, k_vel, rmin, rmax, xm_rest
-	RANGE rate, vel, y
+    ARTIFICIAL_CELL IaGenerator
+    POINTER xm
+    RANGE start, dur, noise, update_ms
+    RANGE rate0, k_len, k_vel, rmin, rmax, xm_rest
+    RANGE rate, vel, y
 }
 
 PARAMETER {
-	start	= 5	(ms)	: first spike
-	dur		= -1 (ms)	: burst duration; <= 0 = until the end of the simulation
-	noise	= 0 <0,1>	: 0 = regular, 1 = Poisson
-	rate0	= 50		: (Hz) tonic rate at resting length and zero velocity
-	k_len	= 5			: (Hz/mm) static sensitivity to stretch
-	k_vel	= 2			: (Hz per mm/s) dynamic sensitivity to stretch velocity
-	rmin	= 2			: (Hz) lower bound of the firing rate
-	rmax	= 200		: (Hz) upper bound of the firing rate
-	xm_rest	= 3 (mm)	: positive resting fibre length; set from fHill in leg.py
+    start = 5 (ms)       : preserve the initial spike at start
+    dur = -1 (ms)        : <= 0 means no end time
+    noise = 0 <0,1>
+    update_ms = 1 (ms)
+    rate0 = 50           : Hz
+    k_len = 25           : Hz/mm
+    k_vel = 8            : Hz per mm/s
+    rmin = 2             : Hz
+    rmax = 200           : Hz
+    xm_rest = 3 (mm)
 }
 
 ASSIGNED {
-	xm
-	y
-	rate
-	vel
-	event (ms)
-	end (ms)
-	on
-	xm_prev
-	t_prev (ms)
+    xm
+    y
+    rate
+    vel
+    end (ms)
+    on
+    xm_prev
+    t_prev (ms)
+    phase
+    phase_limit
 }
 
 INITIAL {
-	on = 0
-	y = 0
-	rate = rate0
-	vel = 0
-	xm_prev = xm
-	t_prev = start
-	if (noise < 0) { noise = 0 }
-	if (noise > 1) { noise = 1 }
-	if (start >= 0) {
-		on = 1
-		event = start
-		net_send(event, 3)
-	}
+    on = 0
+    y = 0
+    phase = 0
+    rate = rate0
+    vel = 0
+    xm_prev = xm
+    t_prev = 0
+    if (noise < 0) { noise = 0 }
+    if (noise > 1) { noise = 1 }
+    if (update_ms <= 0) { update_ms = 1 }
+    : At most one deterministic spike per update, even at rmax.
+    if (rmax > 0 && update_ms > 1000/rmax) { update_ms = 1000/rmax }
+    if (start >= 0) { net_send(start, 3) }
 }
 
-PROCEDURE init_sequence (t (ms)) {
-	on = 1
-	event = t
-	if (dur > 0) {
-		end = t + 1e-6 + dur
-	} else {
-		end = 1e9
-	}
+PROCEDURE update_rate() {
+    rate = rate0 + k_len * (xm - xm_rest) + k_vel * vel
+    if (rate < rmin) { rate = rmin }
+    if (rate > rmax) { rate = rmax }
 }
 
-FUNCTION invl (t (ms)) (ms) { LOCAL mean, dt_ms
-	dt_ms = t - t_prev
-	if (dt_ms <= 0) {
-		vel = 0
-	} else {
-		vel = 1000 * (xm - xm_prev) / dt_ms	: mm per second
-	}
-	rate = rate0 + k_len * (xm - xm_rest) + k_vel * vel
-	if (rate < rmin) { rate = rmin }
-	if (rate > rmax) { rate = rmax }
-	xm_prev = xm
-	t_prev = t
-	mean = 1000 / rate
-	if (noise == 0) {
-		invl = mean
-	} else {
-		invl = (1 - noise) * mean + noise * mean * exprand(1)
-	}
+FUNCTION cycle_size() {
+    if (noise == 0) {
+        cycle_size = 1
+    } else {
+        : At constant rate this has the same mean/noise mixture as NetStim.
+        cycle_size = (1-noise) + noise*exprand(1)
+        if (cycle_size < 1e-9) { cycle_size = 1e-9 }
+    }
 }
 
-NET_RECEIVE (w) {
-	if (flag == 3) {		: from INITIAL
-		if (on == 1) {
-			init_sequence(t)
-			net_send(0, 1)
-		}
-	}
-	if (flag == 1 && on == 1) {
-		y = 2
-		net_event(t)
-		event = event + invl(t)
-		if (event > end) {
-			on = 0
-		}
-		if (on == 1) {
-			net_send(event - t, 1)
-		}
-		net_send(.1, 2)
-	}
+FUNCTION next_tick() (ms) {
+    next_tick = update_ms
+    if (t + next_tick > end) { next_tick = end - t }
+}
+
+NET_RECEIVE (w) { LOCAL dt_ms, old_rate
+    if (flag == 3) {
+        on = 1
+        end = 1e9
+        if (dur > 0) { end = t + dur }
+        xm_prev = xm
+        t_prev = t
+        phase = 0
+        phase_limit = cycle_size()
+        vel = 0
+        update_rate()
+        y = 2
+        net_event(t)
+        net_send(.1, 2)
+    }
+    if (flag == 1 && on == 1) {
+        dt_ms = t - t_prev
+        if (dt_ms > 0) {
+            vel = 1000 * (xm - xm_prev) / dt_ms
+            old_rate = rate
+            update_rate()
+            : Trapezoidal integration keeps the clock responsive at low rates.
+            phase = phase + (old_rate + rate)*dt_ms/2000
+            xm_prev = xm
+            t_prev = t
+            while (phase >= phase_limit) {
+                phase = phase - phase_limit
+                phase_limit = cycle_size()
+                y = 2
+                net_event(t)
+                net_send(.1, 2)
+            }
+        }
+    }
+    if (flag == 2) { y = 0 }
+    if ((flag == 1 || flag == 3) && on == 1) {
+        if (t < end) {
+            net_send(next_tick(), 1)
+        } else {
+            on = 0
+        }
+    }
 }

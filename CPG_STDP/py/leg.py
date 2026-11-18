@@ -366,7 +366,7 @@ class LEG:
         self.gener_Ibgids.append(gid)
         return gid
 
-    def add_ia_pathway(self):
+    def add_ia_pathway(self, defer_spindles=False):
         if hasattr(self, "Ia_aff_E"):
             raise RuntimeError("Ia/Ib feedback has already been added to this leg")
         logging.info("add_ia_pathway: %s | Ia=%s Ib inhibition=%s",
@@ -378,13 +378,10 @@ class LEG:
         self.Ib_E = addpool(self, self.nInt, "Ib_E", "int")
         self.Ib_F = addpool(self, self.nInt, "Ib_F", "int")
 
-        '''spindle generators: one per muscle, tonic, their rate follows the muscle length'''
-        self.Ia_gid_E = self.addIagener(self.muscle_E, "E")
-        self.Ia_gid_F = self.addIagener(self.muscle_F, "F")
-        genconnect(self, self.Ia_gid_E, self.Ia_aff_E, 0.01, 1, inhtype=False, N=20,
-                   gen_name="Ia_spindle_E", target_name="Ia_aff_E")
-        genconnect(self, self.Ia_gid_F, self.Ia_aff_F, 0.01, 1, inhtype=False, N=30,
-                   gen_name="Ia_spindle_F", target_name="Ia_aff_F")
+        self._first_ia_gids = {label: get_gid() for label in "EF"}
+        self.ia_spindle_map = []
+        if not defer_spindles:
+            self.connect_ia_spindles()
 
         scale = IA_WEIGHT_SCALE
         '''Ia2motor: monosynaptic stretch reflex onto the homonymous motoneurons'''
@@ -413,16 +410,33 @@ class LEG:
         self._scaled(scale, lambda: connectcells(self, self.Ib_E, self.mns_E, 0.08, 1, inhtype=True))
         self._scaled(scale, lambda: connectcells(self, self.Ib_F, self.mns_F, 0.08, 1, inhtype=True))
 
-    def addIagener(self, muscles: list, label: str) -> int:
-        if not muscles:
-            raise ValueError("IaGenerator requires a non-empty muscle pool")
+    def connect_ia_spindles(self):
+        if self.ia_spindle_map:
+            raise RuntimeError("Ia spindle inputs have already been connected")
+        for label, muscles, afferents, contacts in (
+                ("E", self.muscle_E, self.Ia_aff_E, 20),
+                ("F", self.muscle_F, self.Ia_aff_F, 30)):
+            if not muscles or not afferents:
+                raise ValueError("Ia spindles require non-empty muscle and afferent pools")
+            rng = random.Random(f"{RANDOM_SEED}:{self.name}:Ia_phase:{label}")
+            phases = list(range(len(afferents)))
+            rng.shuffle(phases)
+            offset = rng.random()
+            baseline_period = 1000 / IA_BASE_RATE_HZ
+            for index, (afferent_gid, phase) in enumerate(zip(afferents, phases)):
+                fiber_index = index % len(muscles)
+                muscle_gid = muscles[fiber_index]
+                gid = self._first_ia_gids[label] if index == 0 else get_gid()
+                start = 5 + baseline_period * (phase + offset) / len(afferents)
+                self._add_ia_generator(gid, muscle_gid, fiber_index % nhost, start)
+                genconnect(self, gid, [afferent_gid], 0.01, 1, N=contacts,
+                           gen_name=f"Ia_spindle_{label}", target_name=f"Ia_aff_{label}")
+                self.ia_spindle_map.append({'pool': label, 'generator_gid': gid,
+                                            'afferent_gid': afferent_gid, 'muscle_gid': muscle_gid,
+                                            'start_ms': start})
 
-        rng = random.Random(f"{self.name}:Ia_spindle:{label}")
-        index = rng.randrange(len(muscles))
-        muscle_gid = muscles[index]
-        owner_rank = index % nhost
-        gid = get_gid()
-
+    def _add_ia_generator(self, gid, muscle_gid, owner_rank, start):
+        pc.set_gid2node(gid, owner_rank)
         if rank == owner_rank:
             if not pc.gid_exists(muscle_gid):
                 raise RuntimeError(
@@ -433,13 +447,15 @@ class LEG:
                 raise TypeError(f"IaGenerator gid={gid}: gid {muscle_gid} is not a muscle cell")
 
             stim = h.IaGenerator()
-            stim.start = 5
+            stim.start = start
             stim.rate0 = IA_BASE_RATE_HZ
+            stim.k_len = IA_LENGTH_GAIN_HZ_PER_MM
+            stim.k_vel = IA_VELOCITY_GAIN_HZ_PER_MM_S
+            stim.update_ms = IA_UPDATE_MS
             seg = muscle_cell.muscle_unit(0.5)
             stim.xm_rest = seg.fiber_length0_fHill
             h.setpointer(seg._ref_fiber_length_fHill, "xm", stim)
 
-            pc.set_gid2node(gid, owner_rank)
             ncstim = h.NetCon(stim, None)
             spike_times = h.Vector()
             ncstim.record(spike_times)
@@ -448,13 +464,7 @@ class LEG:
             self.stims.append(stim)
             self.netcons.append(ncstim)
             self.gen_spike_vectors.append((gid, spike_times))
-            logging.info("IaGenerator created: gid=%s rank=%s muscle=%s (%s)",
-                         gid, owner_rank, muscle_gid, label)
-        else:
-            pc.set_gid2node(gid, owner_rank)
-
         self.gener_Iagids.append(gid)
-        return gid
 
     def _scaled(self, factor, connect):
         '''Run connect() and scale the weights of the NetCons it created.'''

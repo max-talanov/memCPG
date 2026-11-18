@@ -124,12 +124,12 @@ for gain_name, gain in (("CPG_IA_SCALE", IA_WEIGHT_SCALE),
     if not np.isfinite(gain) or gain < 0:
         raise ValueError(f"{gain_name} must be finite and non-negative")
 IA_BASE_RATE_HZ = 50.0  # tonic Ia rate at resting length and zero stretch velocity
-# A synchronous 50-Hz train over 65 synapses must not by itself entrain
-# a resting motoneuron. These weights were checked on isolated cells;
-# modulation during locomotion still needs the coupled cluster run.
+IA_LENGTH_GAIN_HZ_PER_MM = 25.0
+IA_VELOCITY_GAIN_HZ_PER_MM_S = 8.0
+IA_UPDATE_MS = 1.0
 IA_MN_WEIGHT = 0.0003
 IA_RG_WEIGHT = 0.0003
-IA_INTERNEURON_WEIGHT = 0.0008
+IA_INTERNEURON_WEIGHT = 0.0005
 IA_PATTERN_WEIGHT = 0.003
 IA_RECIPROCAL_WEIGHT = 0.002
 

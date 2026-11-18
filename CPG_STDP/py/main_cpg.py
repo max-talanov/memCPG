@@ -120,7 +120,6 @@ if __name__ == '__main__':
     if rank == 0:
         for directory in (file_name, STDP_DIR_LEFT, STDP_DIR_RIGHT):
             os.makedirs(directory, exist_ok=True)
-        save_run_metadata()
         print(f"   ✅ Output directory: {file_name}")
 
     print(f"   Feedback gains: Ia={IA_WEIGHT_SCALE}, Ib inhibition={IB_INHIB_WEIGHT_SCALE}")
@@ -142,12 +141,17 @@ if __name__ == '__main__':
             bs_cmd = create_connect_bs_command(LEG_L, LEG_R, mode=WALK)
             add_external_connections(LEG_L, LEG_R, mode=WALK)
 
-            LEG_L.add_ia_pathway()
-            LEG_R.add_ia_pathway()
+            LEG_L.add_ia_pathway(defer_spindles=True)
+            LEG_R.add_ia_pathway(defer_spindles=True)
+            LEG_L.connect_ia_spindles()
+            LEG_R.connect_ia_spindles()
+            save_run_metadata((LEG_L, LEG_R))
             feedback_cell_recorders = {}
             for leg, label in ((LEG_L, 'left'), (LEG_R, 'right')):
                 for pool_name, gids in (('Ia_int_E', leg.Ia_E), ('Ia_int_F', leg.Ia_F),
-                                        ('R_E', leg.R_E), ('R_F', leg.R_F)):
+                                        ('R_E', leg.R_E), ('R_F', leg.R_F),
+                                        ('Ia_aff_E', leg.Ia_aff_E), ('Ia_aff_F', leg.Ia_aff_F),
+                                        ('RG_E', leg.RG_E), ('RG_F', leg.RG_F)):
                     netcons, vectors = cell_output_spike_record(gids)
                     leg.netcons.extend(netcons)
                     feedback_cell_recorders[(label, pool_name)] = vectors
@@ -289,7 +293,8 @@ if __name__ == '__main__':
                     gid_set = set(gids)
                     generator_spikeout([(gid, vec) for gid, vec in leg.gen_spike_vectors
                                         if gid in gid_set], pathway, i, label)
-                for pool_name in ('Ia_int_E', 'Ia_int_F', 'R_E', 'R_F'):
+                for pool_name in ('Ia_int_E', 'Ia_int_F', 'R_E', 'R_F',
+                                  'Ia_aff_E', 'Ia_aff_F', 'RG_E', 'RG_F'):
                     generator_spikeout(feedback_cell_recorders[(label, pool_name)], pool_name, i, label)
 
             # spikeout(cpg_ex.gener_Ibgids, 'vel', i, vel_vecs_recorders)

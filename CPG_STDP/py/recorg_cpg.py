@@ -8,7 +8,7 @@ import neuron
 OVERVIEW_ORDER = ("RG_F", "RG_E", "InF", "InE", "V2a", "V0v", "V0d", "V3f")
 
 
-def save_run_metadata():
+def save_run_metadata(legs=()):
     if rank != 0:
         return
     source_dir = Path(__file__).resolve().parent
@@ -25,10 +25,19 @@ def save_run_metadata():
                        'interneuron': IA_INTERNEURON_WEIGHT,
                        'pattern': IA_PATTERN_WEIGHT, 'reciprocal': IA_RECIPROCAL_WEIGHT},
         'ia_baseline_hz': IA_BASE_RATE_HZ,
+        'ia_generator': {'model': 'sampled_phase_accumulator',
+                         'input_per_afferent': True,
+                         'length_gain_hz_per_mm': IA_LENGTH_GAIN_HZ_PER_MM,
+                         'velocity_gain_hz_per_mm_s': IA_VELOCITY_GAIN_HZ_PER_MM_S,
+                         'update_ms': IA_UPDATE_MS},
         'environment': {key: value for key, value in os.environ.items() if key.startswith('CPG_')},
         'source_sha256': {str(path.relative_to(source_dir)): hashlib.sha256(path.read_bytes()).hexdigest()
                           for path in sources},
     }
+    if legs:
+        metadata['ia_spindles'] = {
+            'left' if leg.leg_l else 'right': leg.ia_spindle_map for leg in legs
+        }
     with open(os.path.join(file_name, 'run_config.json'), 'w') as output:
         json.dump(metadata, output, indent=2, sort_keys=True)
 
