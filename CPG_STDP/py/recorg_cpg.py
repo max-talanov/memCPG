@@ -8,7 +8,7 @@ import neuron
 OVERVIEW_ORDER = ("RG_F", "RG_E", "InF", "InE", "V2a", "V0v", "V0d", "V3f")
 
 
-def save_run_metadata(legs=()):
+def save_run_metadata(legs=(), treadmill=None):
     if rank != 0:
         return
     source_dir = Path(__file__).resolve().parent
@@ -16,6 +16,9 @@ def save_run_metadata(legs=()):
     metadata = {
         'neuron_version': neuron.__version__, 'mpi_ranks': nhost,
         'random_seed': RANDOM_SEED, 'steps': step_number,
+        'step_inputs': {'mode': STEP_INPUTS, 'scheduled_cut': SCHEDULE_CUT,
+                        'scheduled_ib': SCHEDULE_IB, 'live_cut': LIVE_CUT, 'live_ib': LIVE_IB,
+                        'brainstem': ('tonic' if NEURAL_TONIC_NA else 'none') if NEURAL_FEEDBACK else 'startup_burst'},
         'speed': speed, 'bs_fr': bs_fr, 'k': k, 'bws': BWS, 'injury': INJURY,
         'tstop_ms': time_sim, 'electrical_dt_ms': 0.025,
         'joint_enabled': JOINT_ENABLED, 'joint_exchange_ms': JOINT_EXCHANGE_MS,
@@ -38,8 +41,73 @@ def save_run_metadata(legs=()):
         metadata['ia_spindles'] = {
             'left' if leg.leg_l else 'right': leg.ia_spindle_map for leg in legs
         }
+    if NEURAL_FEEDBACK:
+        metadata['neural_feedback'] = {'cut_rg_scale': NEURAL_CUT_RG_SCALE,
+                                       'ib_rg_scale': NEURAL_IB_RG_SCALE, 'ib_mn_scale': NEURAL_IB_MN_SCALE,
+                                       'rg_inhibition_weight': NEURAL_RG_INHIB_WEIGHT,
+                                       'extensor_tonic_nA': NEURAL_TONIC_NA,
+                                       'flexor_tonic_nA': NEURAL_TONIC_NA * FLEXOR_TONIC_RATIO,
+                                       'flexor_nap_S_per_cm2': FLEXOR_NAP_GBAR,
+                                       'hip_ia_rg_weight': HIP_IA_RG_WEIGHT, 'hip_ia_scale': HIP_IA_SCALE}
+    if treadmill is not None:
+        metadata['treadmill'] = treadmill.metadata
     with open(os.path.join(file_name, 'run_config.json'), 'w') as output:
         json.dump(metadata, output, indent=2, sort_keys=True)
+
+
+def save_treadmill_recordings(treadmill, version):
+    if rank != 0:
+        return
+    stem = os.path.join(file_name, f'treadmill_v{version}')
+    with hdf5.File(stem + '.hdf5', 'w') as output:
+        output.attrs['model'] = json.dumps(treadmill.metadata)
+        output.attrs['sampling'] = ('Muscle tension used for the physics step; angles and paths at its end. '
+                                    'Sensory commands are held over the next exchange interval.')
+        for name, values in treadmill.history.items():
+            output.create_dataset(name, data=np.asarray(values), compression='gzip')
+    plot_treadmill_history(treadmill.history, stem + '.png')
+
+
+def plot_treadmill_history(history, path, title='Supported hindlimbs · force-driven treadmill'):
+    from matplotlib.figure import Figure
+    from matplotlib.backends.backend_agg import FigureCanvasAgg
+
+    receptor_current = 'L_CUT_current_nA' in history
+    has_feedback = 'L_CUT_rate_Hz' in history or receptor_current
+    figure = Figure(figsize=(12, 11 if has_feedback else 9), constrained_layout=True)
+    FigureCanvasAgg(figure)
+    axes = figure.subplots(5 if has_feedback else 4, 2, sharex=True, sharey='row')
+    t = np.asarray(history['time_ms']) / 1000
+    for col, (side, label) in enumerate((('L', 'Left'), ('R', 'Right'))):
+        for row, joint in enumerate(('hip', 'knee', 'ankle')):
+            ax = axes[row, col]
+            ax.plot(t, np.degrees(history[f'{side}_{joint}_angle_rad']), color='black', lw=1.2)
+            ax.set_title(f'{label} {joint}', loc='left')
+            ax.set_ylabel('Angle (deg)')
+            force_ax = ax.twinx()
+            for phase, color in (('E', 'tab:blue'), ('F', 'tab:orange')):
+                force_ax.plot(t, history[f'{side}_{joint}_{phase}_force_N'], color=color, label=phase)
+            force_ax.set_ylabel('Tension (N)')
+            force_ax.legend(loc='upper left', fontsize=8)
+            ax.grid(alpha=.18)
+        axes[3, col].plot(t, history[f'{side}_contact_N'], color='tab:green')
+        axes[3, col].set_ylabel('Belt contact (N)')
+        axes[3, col].grid(alpha=.18)
+        if has_feedback:
+            sens = [('CUT', 'CUT', 'tab:green'), ('Ib_E', 'Ib E', 'tab:blue'), ('Ib_F', 'Ib F', 'tab:orange')]
+            suffix = 'current_nA' if receptor_current else 'rate_Hz'
+            if receptor_current:
+                sens += [('Ia_E', 'Ia E', 'tab:purple'), ('Ia_F', 'Ia F', 'tab:red')]
+                if f'{side}_Ia_hip_F_current_nA' in history:
+                    sens.append(('Ia_hip_F', 'Hip flexor Ia', 'black'))
+            for name, label, color in sens:
+                axes[4, col].plot(t, history[f'{side}_{name}_{suffix}'], label=label, color=color)
+            axes[4, col].set_ylabel('Receptor current (nA)' if receptor_current else 'Input rate (Hz)')
+            axes[4, col].legend(loc='upper right', fontsize=8)
+            axes[4, col].grid(alpha=.18)
+        axes[-1, col].set_xlabel('Time (s)')
+    figure.suptitle(title)
+    figure.savefig(path, dpi=150)
 
 
 def save_joint_recordings(joints, version):
@@ -379,6 +447,12 @@ def spikeout(pool, name, version, v_vec, leg):
         step_width = one_step_time * 40
         fname = f'./{file_name}/{name}_sp_{speed}_CVs_{CV_number}_bs_{bs_fr}_{leg}.hdf5'
         with hdf5.File(fname, 'w') as file:
+            if STEP_INPUTS != 'scheduled':
+                file.attrs['trace_layout'] = 'continuous'
+                file.attrs['start_ms'] = bs_offset * h.dt
+                file.attrs['dt_ms'] = h.dt
+                file.create_dataset('#0_step_0', data=out[bs_offset:], compression="gzip")
+                return
             for i in range(step_number * 2):
                 start = bs_offset + i * step_width
                 end = start + step_width

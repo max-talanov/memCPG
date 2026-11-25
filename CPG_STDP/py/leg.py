@@ -148,17 +148,19 @@ class LEG:
 
         '''cutaneous inputs'''
         cfr = 90
-        c_int = 1000 / cfr
 
         '''cutaneous inputs generators'''
         for layer in range(CV_number):
             self.dict_CV_gener[layer] = []
+            if NEURAL_FEEDBACK:
+                continue
             for i in range(step_number):
                 step_leg = 10 + speed * layer + i * (2 * one_step_time) + 7 - layer * 12
                 if leg_l:
                     step_leg += one_step_time
                 self.dict_CV_gener[layer].append(
-                    addgener(self, step_leg, cfr, cv=True, rate_scale=1 - BWS))
+                    addgener(self, step_leg, cfr, cv=True, rate_scale=1 - BWS,
+                             enabled=SCHEDULE_CUT))
                     ## int((one_step_time / CV_number) * 0.15), cv=True))
         #
         # '''Generators'''
@@ -181,7 +183,7 @@ class LEG:
         #connectcells(self, self.BS_aff_E, self.RG_E, 0.1, 3, stdptype=False)
 
         '''Ib inputs'''
-        self.E_ib_gids, self.F_ib_gids = self.add_ib_geners(leg_l)
+        self.E_ib_gids, self.F_ib_gids = ([], []) if NEURAL_FEEDBACK else self.add_ib_geners(leg_l)
 
         for E_ib_gids in self.E_ib_gids:
             genconnect(self, E_ib_gids, self.Ib_aff_E, 0.01, 1, inhtype=False, N=20)
@@ -207,9 +209,11 @@ class LEG:
         # injury: the extensor pathways keep their synapses and delays (same as the intact
         # network), only the weights are scaled, see injury_scales()
         scales = injury_scales()
-        self._scaled(scales["ib_rg"], lambda: connectcells(
+        ib_rg_scale = NEURAL_IB_RG_SCALE if NEURAL_FEEDBACK else 1.
+        self._scaled(ib_rg_scale * scales["ib_rg"], lambda: connectcells(
             self, self.Ib_aff_E, self.RG_E, weight=w_Ib, delay=3, stdptype=stdp_Ib))
-        connectcells(self, self.Ib_aff_F, self.RG_F, weight=w_Ib, delay=3, stdptype=stdp_Ib)
+        self._scaled(ib_rg_scale, lambda: connectcells(
+            self, self.Ib_aff_F, self.RG_F, weight=w_Ib, delay=3, stdptype=stdp_Ib))
 
         for layer in range(CV_number):
             for gen_gid in self.dict_CV_gener[layer]:
@@ -220,6 +224,8 @@ class LEG:
         # (connectcells seeds it with the weight), then scale to this mode and injury
         w_cut_plantar = 0.0035 * 0.017 * speed
         cut_factor = k / 0.017 * scales["cut"]
+        if NEURAL_FEEDBACK:
+            cut_factor *= NEURAL_CUT_RG_SCALE
         w_cut = w_cut_plantar * cut_factor
         cut_stdp = cut_recovery_stdp(w_Ib, w_cut) or dict(
             stdp_wmax=w_cut * STDP_MAX_WEIGHT_FACTOR, stdp_hebbwt=w_cut * STDP_HEBB_STEP_FRACTION)
@@ -229,8 +235,9 @@ class LEG:
                 stdptype=stdp_CV, **cut_stdp))
 
         '''Ib2motor'''
-        self._scaled(scales["ib_mn"], lambda: connectcells(self, self.Ib_aff_E, self.mns_E, 1.55, 2))
-        connectcells(self, self.Ib_aff_F, self.mns_F, 1.55, 2)
+        ib_mn_scale = NEURAL_IB_MN_SCALE if NEURAL_FEEDBACK else 1.
+        self._scaled(ib_mn_scale * scales["ib_mn"], lambda: connectcells(self, self.Ib_aff_E, self.mns_E, 1.55, 2))
+        self._scaled(ib_mn_scale, lambda: connectcells(self, self.Ib_aff_F, self.mns_F, 1.55, 2))
 
         for layer in range(CV_number):
             '''Internal to RG topology'''
@@ -278,6 +285,43 @@ class LEG:
         #connectcells(self, self.RG_F, self.V0d, 0.75, 3)
         connectcells(self, self.V2a, self.V0v, 1.2, 3)
         # add_ia_pathway() is deliberately NOT called here, see its docstring
+
+    def add_proximal_muscles(self):
+        self.treadmill_muscles = {'ankle_E': self.muscle_E, 'ankle_F': self.muscle_F}
+        for joint in ('hip', 'knee'):
+            for phase, rg, antagonist in (('E', self.RG_E, self.InF), ('F', self.RG_F, self.InE)):
+                group = f'{joint}_{phase}'
+                pattern = addpool(self, self.nInt, f'PF_{group}', 'int')
+                motors = addpool(self, self.nMn, f'mns_{group}', 'moto')
+                muscles = addpool(self, self.nMn, f'muscle_{group}', 'muscle')
+                self.treadmill_muscles[group] = muscles
+                connectcells(self, rg, pattern, 0.01, 1, pre_name=f'RG_{phase}', post_name=f'PF_{group}')
+                connectcells(self, antagonist, pattern, 0.01, 1, inhtype=True,
+                             pre_name=f'In_antagonist_{phase}', post_name=f'PF_{group}')
+                connectcells(self, pattern, motors, 2.75, 3,
+                             pre_name=f'PF_{group}', post_name=f'mns_{group}')
+                connectcells(self, motors, muscles, 10, 2, N=45, sect='muscle',
+                             pre_name=f'mns_{group}', post_name=f'muscle_{group}')
+
+    def add_neural_locomotor_inputs(self):
+        self.Ia_hip_F = addpool(self, self.nAff, 'Ia_hip_F', 'aff')
+        self._scaled(IA_WEIGHT_SCALE * HIP_IA_SCALE, lambda: connectcells(
+            self, self.Ia_hip_F, self.RG_F, HIP_IA_RG_WEIGHT, 2,
+            pre_name='Ia_hip_F', post_name='RG_F', N=12))
+
+        for pool, conductance, tonic_nA in ((self.RG_E, 0., NEURAL_TONIC_NA),
+                                           (self.RG_F, FLEXOR_NAP_GBAR, NEURAL_TONIC_NA * FLEXOR_TONIC_RATIO)):
+            for gid in pool:
+                if pc.gid_exists(gid):
+                    soma = pc.gid2cell(gid).soma
+                    if conductance:
+                        soma.insert('nap')
+                        soma.gbar_nap = conductance
+                    if tonic_nA:
+                        drive = h.IClamp(soma(.5))
+                        drive.dur = 1e9
+                        drive.amp = tonic_nA
+                        self.stims.append(drive)
 
     def addIbgener(self, mn: list, mn2: list, start, weight=1.0):
         '''
@@ -327,9 +371,9 @@ class LEG:
             interval = int(1000 / bs_fr)
             number = int(one_step_time / interval) - 2
             stim = h.IbGenerator()
-            stim.start = start
+            stim.start = start if SCHEDULE_IB else -1
             stim.interval = interval
-            stim.number = number
+            stim.number = number if SCHEDULE_IB else 0
             try:
                 stim.dur = interval * (number - 1)
                 stim.vmin = IB_MIN_RATE_HZ

@@ -3,6 +3,7 @@ import sys
 import os
 import time
 import gc
+from dataclasses import replace
 
 # Fix for macOS having PYTHONPATH pointing to system NEURON
 if "darwin" in sys.platform:
@@ -15,11 +16,11 @@ from constants import *
 from utils_cpg import *
 from leg import *
 from recorg_cpg import *
-from bs_command import WALK
+from bs_command import WALK, apply_bs_mode_to_cpg
 from joint_mechanics import LegJoint, run_coupled
 
 
-def prun(speed, step_number, joints=()):
+def prun(speed, step_number, joints=(), treadmill=None):
     print(f"🚀 [rank {rank}] Starting simulation: speed={speed}, steps={step_number}")
     logging.info(f"prun start: speed={speed}, steps={step_number}, time_sim={time_sim}")
 
@@ -47,7 +48,9 @@ def prun(speed, step_number, joints=()):
         print(f"   ✅ finitialize completed")
 
         print(f"   Starting main simulation...")
-        if joints:
+        if treadmill is not None:
+            treadmill.run(use_psolve=not is_macos or nhost > 1)
+        elif joints:
             run_coupled(h, pc, joints, time_sim, JOINT_EXCHANGE_MS,
                         use_psolve=not is_macos or nhost > 1)
         elif platform.system() == "Darwin" and nhost == 1:
@@ -123,6 +126,8 @@ if __name__ == '__main__':
         print(f"   ✅ Output directory: {file_name}")
 
     print(f"   Feedback gains: Ia={IA_WEIGHT_SCALE}, Ib inhibition={IB_INHIB_WEIGHT_SCALE}")
+    print(f"   Step inputs: {STEP_INPUTS} (CUT schedule={SCHEDULE_CUT}, Ib schedule={SCHEDULE_IB})")
+    print(f"   Live feedback: CUT={LIVE_CUT}, Ib={LIVE_IB}")
 
     for i in range(versions):
         print(f"🔄 [rank {rank}] VERSION {i + 1}/{versions} START")
@@ -138,20 +143,48 @@ if __name__ == '__main__':
             np.random.seed(RANDOM_SEED + rank)
             LEG_R = LEG(speed, bs_fr, 100, step_number, N, leg_l=False)
 
-            bs_cmd = create_connect_bs_command(LEG_L, LEG_R, mode=WALK)
+            bs_cmd = None
+            if NEURAL_FEEDBACK:
+                mode = replace(WALK, InE_to_RG_F_weight=NEURAL_RG_INHIB_WEIGHT,
+                               InF_to_RG_E_weight=NEURAL_RG_INHIB_WEIGHT)
+                apply_bs_mode_to_cpg(LEG_L, LEG_R, mode)
+            else:
+                bs_cmd = create_connect_bs_command(LEG_L, LEG_R, mode=WALK)
             add_external_connections(LEG_L, LEG_R, mode=WALK)
 
             LEG_L.add_ia_pathway(defer_spindles=True)
             LEG_R.add_ia_pathway(defer_spindles=True)
-            LEG_L.connect_ia_spindles()
-            LEG_R.connect_ia_spindles()
-            save_run_metadata((LEG_L, LEG_R))
+            if not NEURAL_FEEDBACK:
+                LEG_L.connect_ia_spindles()
+                LEG_R.connect_ia_spindles()
+            treadmill = None
+            if TREADMILL_ENABLED:
+                from treadmill_mechanics import TreadmillCoupling
+                from treadmill_feedback import TreadmillFeedback, TreadmillReceptors
+                LEG_L.add_proximal_muscles()
+                LEG_R.add_proximal_muscles()
+                legs = (LEG_L, LEG_R)
+                if NEURAL_FEEDBACK:
+                    for leg in legs:
+                        leg.add_neural_locomotor_inputs()
+                    feedback = TreadmillReceptors(legs)
+                else:
+                    feedback = TreadmillFeedback(legs, cut=LIVE_CUT, ib=LIVE_IB)
+                treadmill = TreadmillCoupling(h, pc, legs,
+                                              float(os.environ.get('CPG_TREADMILL_DT_MS', '1')),
+                                              time_sim, feedback=feedback)
+            save_run_metadata((LEG_L, LEG_R), treadmill)
             feedback_cell_recorders = {}
             for leg, label in ((LEG_L, 'left'), (LEG_R, 'right')):
-                for pool_name, gids in (('Ia_int_E', leg.Ia_E), ('Ia_int_F', leg.Ia_F),
-                                        ('R_E', leg.R_E), ('R_F', leg.R_F),
-                                        ('Ia_aff_E', leg.Ia_aff_E), ('Ia_aff_F', leg.Ia_aff_F),
-                                        ('RG_E', leg.RG_E), ('RG_F', leg.RG_F)):
+                pools = (('Ia_int_E', leg.Ia_E), ('Ia_int_F', leg.Ia_F),
+                         ('R_E', leg.R_E), ('R_F', leg.R_F),
+                         ('Ia_aff_E', leg.Ia_aff_E), ('Ia_aff_F', leg.Ia_aff_F),
+                         ('RG_E', leg.RG_E), ('RG_F', leg.RG_F))
+                if treadmill is not None:
+                    pools += (('CV', leg.CV), ('Ib_aff_E', leg.Ib_aff_E), ('Ib_aff_F', leg.Ib_aff_F))
+                if NEURAL_FEEDBACK:
+                    pools += (('Ia_hip_F', leg.Ia_hip_F),)
+                for pool_name, gids in pools:
                     netcons, vectors = cell_output_spike_record(gids)
                     leg.netcons.extend(netcons)
                     feedback_cell_recorders[(label, pool_name)] = vectors
@@ -220,13 +253,15 @@ if __name__ == '__main__':
             pc.barrier()
 
             logging.info(f"[version {i + 1}] simulation start")
-            sim_time_sec = prun(speed, step_number, joints)
+            sim_time_sec = prun(speed, step_number, joints, treadmill)
             logging.info(f"[version {i + 1}] simulation time: {sim_time_sec:.3f} s")
 
             logging.info("Simulation done")
 
             print(f"   💾 Saving results...")
             save_joint_recordings(joints, i)
+            if treadmill is not None:
+                save_treadmill_recordings(treadmill, i)
 
             left_raw = []
             right_raw = []
@@ -289,13 +324,20 @@ if __name__ == '__main__':
                 spikeout(group[k_nrns], 'am_{}'.format(group[k_name]), i, recorder, "right")
 
             for leg, label in ((LEG_L, 'left'), (LEG_R, 'right')):
-                for pathway, gids in (('Ia', leg.gener_Iagids), ('Ib', leg.gener_Ibgids)):
-                    gid_set = set(gids)
-                    generator_spikeout([(gid, vec) for gid, vec in leg.gen_spike_vectors
-                                        if gid in gid_set], pathway, i, label)
-                for pool_name in ('Ia_int_E', 'Ia_int_F', 'R_E', 'R_F',
-                                  'Ia_aff_E', 'Ia_aff_F', 'RG_E', 'RG_F'):
-                    generator_spikeout(feedback_cell_recorders[(label, pool_name)], pool_name, i, label)
+                if bs_cmd is not None:
+                    cut_gids = [gid for group in leg.dict_CV_gener.values() for gid in group]
+                    if treadmill is not None:
+                        side = 'L' if leg.leg_l else 'R'
+                        cut_gids.extend(treadmill.feedback.cut_gids[side])
+                    command_gids = bs_cmd.left_cmd_gids if label == 'left' else bs_cmd.right_cmd_gids
+                    for pathway, gids in (('Ia', leg.gener_Iagids), ('Ib', leg.gener_Ibgids),
+                                          ('CUT', cut_gids), ('BS', command_gids)):
+                        gid_set = set(gids)
+                        generator_spikeout([(gid, vec) for gid, vec in leg.gen_spike_vectors
+                                            if gid in gid_set], pathway, i, label)
+                for (recorded_leg, pool_name), vectors in feedback_cell_recorders.items():
+                    if recorded_leg == label:
+                        generator_spikeout(vectors, pool_name, i, label)
 
             # spikeout(cpg_ex.gener_Ibgids, 'vel', i, vel_vecs_recorders)
             # spikeout(cpg_ex.gener_Ibgids, 'v0', i, v0_vecs_recorders)

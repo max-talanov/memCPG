@@ -1,5 +1,11 @@
-from neuron import h
 import os
+from pathlib import Path
+
+os.environ.setdefault('MUJOCO_GL', 'disable')
+os.environ.setdefault('MPLBACKEND', 'Agg')
+os.environ.setdefault('OMP_NUM_THREADS', '1')
+
+from neuron import h
 import numpy as np
 import h5py as hdf5
 import logging
@@ -92,16 +98,40 @@ if not 0.0 <= INJURY <= 1.0:
     raise ValueError(f"CPG_INJURY must be in [0, 1], got {INJURY}")
 one_step_time = int((6 * speed + CV_0_len) / (int(1000 / bs_fr))) * (int(1000 / bs_fr))
 time_sim = (one_step_time * step_number + 30)*2
+MECHANICS = os.environ.get('CPG_MECHANICS', 'treadmill')
+if MECHANICS not in ('legacy', 'treadmill'):
+    raise ValueError('CPG_MECHANICS must be legacy or treadmill')
+TREADMILL_ENABLED = MECHANICS == 'treadmill'
+CPG_TREADMILL_XML = Path(os.environ.get(
+    'CPG_TREADMILL_XML', Path(__file__).with_name('dual_rat_hindlimb.xml')
+)).expanduser().resolve()
+STEP_INPUTS = os.environ.get('CPG_STEP_INPUTS', 'neural' if TREADMILL_ENABLED else 'scheduled')
+STEP_INPUT_MODES = ('scheduled', 'cut-only', 'ib-only', 'none', 'feedback', 'feedback-cut', 'feedback-ib', 'neural')
+if STEP_INPUTS not in STEP_INPUT_MODES:
+    raise ValueError(f'CPG_STEP_INPUTS must be one of: {", ".join(STEP_INPUT_MODES)}')
+NEURAL_FEEDBACK = STEP_INPUTS == 'neural'
+NEURAL_CUT_RG_SCALE = .25
+NEURAL_IB_RG_SCALE = .003
+NEURAL_IB_MN_SCALE = .02
+NEURAL_RG_INHIB_WEIGHT = .035
+LIVE_CUT = STEP_INPUTS in {'feedback', 'feedback-cut', 'neural'}
+LIVE_IB = STEP_INPUTS in {'feedback', 'feedback-ib', 'neural'}
+if (LIVE_CUT or LIVE_IB) and not TREADMILL_ENABLED:
+    raise ValueError('Live CUT and Ib need CPG_MECHANICS=treadmill')
+SCHEDULE_CUT = STEP_INPUTS in {'scheduled', 'cut-only'}
+SCHEDULE_IB = STEP_INPUTS in {'scheduled', 'ib-only'}
 if "CPG_OUT" in os.environ:
     file_name = os.environ["CPG_OUT"]
 elif (speed, k, BWS, INJURY) != (100, 0.017, 0.0, 0.0):
     file_name = f"res_sp{speed}_k{k:g}_bws{BWS:g}_inj{INJURY:g}"
+if STEP_INPUTS != 'scheduled' and 'CPG_OUT' not in os.environ:
+    file_name += f'_step_inputs_{STEP_INPUTS}'
 
 # One independent mechanical joint per leg. Set CPG_JOINT=0 for a fixed-path
 # control run (the updated muscle/tendon model is still used).
 if os.environ.get('CPG_JOINT', '1') not in ('0', '1'):
     raise ValueError('CPG_JOINT must be 0 or 1')
-JOINT_ENABLED = os.environ.get('CPG_JOINT', '1') == '1'
+JOINT_ENABLED = not TREADMILL_ENABLED and os.environ.get('CPG_JOINT', '1') == '1'
 JOINT_EXCHANGE_MS = float(os.environ.get('CPG_JOINT_DT_MS', '0.1'))
 if not np.isfinite(JOINT_EXCHANGE_MS) or JOINT_EXCHANGE_MS <= 0:
     raise ValueError('CPG_JOINT_DT_MS must be finite and positive')
@@ -109,6 +139,8 @@ if not np.isfinite(JOINT_EXCHANGE_MS) or JOINT_EXCHANGE_MS <= 0:
 JOINT_PARAMETERS = JointParameters()
 if JOINT_ENABLED and 'CPG_OUT' not in os.environ:
     file_name += '_joint'
+if TREADMILL_ENABLED and 'CPG_OUT' not in os.environ:
+    file_name += '_treadmill'
 if 'CPG_TSTOP_MS' in os.environ:
     time_sim = float(os.environ['CPG_TSTOP_MS'])
     if not np.isfinite(time_sim) or time_sim <= 0:
@@ -132,6 +164,15 @@ IA_RG_WEIGHT = 0.0003
 IA_INTERNEURON_WEIGHT = 0.0005
 IA_PATTERN_WEIGHT = 0.003
 IA_RECIPROCAL_WEIGHT = 0.002
+
+NEURAL_TONIC_NA = float(os.environ.get('CPG_TONIC_NA', '.23'))
+HIP_IA_SCALE = float(os.environ.get('CPG_HIP_IA_SCALE', '1'))
+for name, value in (('CPG_TONIC_NA', NEURAL_TONIC_NA), ('CPG_HIP_IA_SCALE', HIP_IA_SCALE)):
+    if not np.isfinite(value) or value < 0:
+        raise ValueError(f'{name} must be finite and non-negative')
+HIP_IA_RG_WEIGHT = .006
+FLEXOR_NAP_GBAR = .003
+FLEXOR_TONIC_RATIO = .70
 
 STDP_RECOVERY_WMAX_FACTOR = 1.0  # wmax = factor * INJURY * w_Ib
 STDP_RECOVERY_HEBB_FRACTION = 0.02  # LTP step, fraction of the post-injury CUT weight per event

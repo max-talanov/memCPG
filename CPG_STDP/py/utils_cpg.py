@@ -362,7 +362,7 @@ def log_gid_by_lookup(leg, gid: int, name):
         print(f"[rank {rank}] Added GID {gid} (type: {typename})")
 
 
-def addgener(leg, start, freq, cv=False, r=True, rate_scale=1.0):
+def addgener(leg, start, freq, cv=False, r=True, rate_scale=1.0, *, enabled=True):
     '''
     Creates generator and returns generator gid
     Parameters
@@ -409,6 +409,10 @@ def addgener(leg, start, freq, cv=False, r=True, rate_scale=1.0):
             stim.number = max(1, round(stim.number * rate_scale))
             interval = duration / stim.number
             stim.interval = interval
+
+        if not enabled:
+            stim.start = -1
+            stim.number = 0
 
         # -----------------------------------------
         # ЛОГИРУЕМ ВСЕ ПАРАМЕТРЫ STIM
